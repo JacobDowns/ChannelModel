@@ -47,9 +47,10 @@ class PlotRect(PlotTools):
     self.qn = dot(q, as_vector([-1, 0]))
     
     increments = 250
-    self.xs = np.linspace(1, 60e3, increments)
+    self.xs = np.linspace(1, 100e3, increments)
     
     
+    """
     ### Compute some stuff necessary for computing the integrated channel discharge
     
     self.edge_to_dof1, self.edge_to_dof2 = self.calculate_edge_to_dof_maps()
@@ -70,7 +71,7 @@ class PlotRect(PlotTools):
     self.input_file.read(k_c, "k_c_0")
     self.k_c = k_c.vector().array()[0]
     self.delta = delta
-    self.alpha = alpha
+    self.alpha = alpha"""
     
     
   # Integrate a field across the width of the ice sheet
@@ -121,6 +122,19 @@ class PlotRect(PlotTools):
         
       return np.array(hs) / 20e3
       
+  # Get the width integrated effective pressure
+  def get_int_N(self, i):
+    if i < self.num_steps:
+      self.get_N(i)
+      
+      int_N = self.integrate_y(self.N)
+      
+      Ns = []
+      for x in self.xs:
+        Ns.append(int_N([x, 20e3]))
+        
+      return np.array(Ns) / 20e3
+      
     
   # Get the width integrated channel discharge at the ith time step across a line at x
   def get_channel_discharge_x(self, i, x):  
@@ -144,7 +158,7 @@ class PlotRect(PlotTools):
       return np.array(discharge)
       
       
-  # Compute oriented edge derivatives      
+  """# Compute oriented edge derivatives      
   def compute_dphi_ds(self, i):
     self.edge_x1
     self.edge_x2
@@ -228,7 +242,7 @@ class PlotRect(PlotTools):
     edge_to_dof0 = f_0.array()[edge_to_facet_map]
     edge_to_dof1 = f_1.array()[edge_to_facet_map]
     
-    return (edge_to_dof0, edge_to_dof1)
+    return (edge_to_dof0, edge_to_dof1)"""
   
 
         

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-SHMIP simulation A3. 
+SHMIP simulation A5. 
 """
 
 from dolfin import *
@@ -10,8 +10,8 @@ from dolfin import MPI, mpi_comm_world
 from scale_functions import *
 
 MPI_rank = MPI.rank(mpi_comm_world())
-input_file = '../inputs/A3/inputs_A3.hdf5'
-out_dir = 'results'
+input_file = '../inputs/A5/inputs_A5.hdf5'
+out_dir = 'results_abs'
 
 
 ### Setup the model
@@ -30,9 +30,9 @@ model = ChannelModel(model_inputs)
 # Seconds per day
 spd = pcs['spd']
 # End time
-T = 650.0 * spd
+T = 1000.0 * spd
 # Time step
-dt = spd / 3.0
+dt = spd / 4.0
 # Iteration count
 i = 0
 

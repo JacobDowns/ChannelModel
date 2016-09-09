@@ -6,6 +6,9 @@ from phi_solver import *
 from hs_solver import *
 import sys as sys
 
+# This is necessary or else assembly of facet integrals will not work in parallel!
+parameters['ghost_mode'] = 'shared_facet'
+
 """ Wrapper class for Glads."""
 
 class ChannelModel(Model):
@@ -112,7 +115,7 @@ class ChannelModel(Model):
       prm['newton_solver']['relative_tolerance'] = 1e-6
       prm['newton_solver']['absolute_tolerance'] = 1e-6
       prm['newton_solver']['error_on_nonconvergence'] = False
-      prm['newton_solver']['maximum_iterations'] = 25
+      prm['newton_solver']['maximum_iterations'] = 30
       
       self.newton_params = prm
       
@@ -352,7 +355,7 @@ class ChannelModel(Model):
         self.q_out << self.q_func
       if 'k' in to_write:
         self.k_out << self.k
-      if 'S' in to_write:
+      """if 'S' in to_write:
         self.cr_tools.copy_cr_to_facet(self.S, self.ff_out_S)
         self.S_out << self.ff_out_S
       if 'h_cr' in to_write:
@@ -360,7 +363,7 @@ class ChannelModel(Model):
         self.h_cr_out << self.ff_out_h_cr
       if 'N_cr' in to_write:
         self.cr_tools.copy_cr_to_facet(self.N_cr, self.ff_out_N_cr)
-        self.N_cr_out << self.ff_out_N_cr
+        self.N_cr_out << self.ff_out_N_cr"""
       
 
   # Write checkpoint files to an hdf5 file

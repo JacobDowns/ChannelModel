@@ -14,9 +14,9 @@ class CRTools(object):
     # Process
     self.MPI_rank = MPI.rank(mpi_comm_world())
     # Compute a map from local facets to global edge indexs
-    self.compute_local_facet_to_global_edge_index_map()
+    #self.compute_local_facet_to_global_edge_index_map()
     # Compute a map from local edges to global edge indexes
-    self.compute_local_edge_to_global_edge_index_map()
+    #self.compute_local_edge_to_global_edge_index_map()
     # Compute local edge lengths
     self.edge_lens = edge_lens
     
@@ -32,7 +32,7 @@ class CRTools(object):
     self.F = (dot(grad(self.U), t) * v_cr)('+') * dS
     
     # Facet function for plotting 
-    self.ff_plot = FacetFunctionDouble(mesh)
+    #self.ff_plot = FacetFunctionDouble(mesh)
     
     
   # Copies a CR function to a facet function
@@ -47,10 +47,10 @@ class CRTools(object):
   
   # Compute a map from local facets to indexes in a global cr vector
   def compute_local_facet_to_global_edge_index_map(self):
-    # Compute the midpoints of local edges in a cr function
-    edge_coords = self.V_cr.dofmap().tabulate_all_coordinates(self.mesh)
+    # Compute the midpoints of local edges in a cr function   
+    edge_coords = self.V_cr.tabulate_dof_coordinates()
     edge_coords = edge_coords.reshape((len(edge_coords)/2), 2)
-    
+ 
     # Gather a global array of midpoints for a cr function
     fx = Function(self.V_cr)
     fy = Function(self.V_cr)
@@ -103,6 +103,7 @@ class CRTools(object):
     self.U.assign(cg)
     
     # Get the height difference of two vertexes on each edge
+    #A = abs(assemble(self.F).array())
     A = abs(assemble(self.F).array())
     # Now divide by the edge lens
     dcg_ds = A / self.edge_lens.vector().array()

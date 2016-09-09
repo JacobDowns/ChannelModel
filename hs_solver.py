@@ -128,7 +128,7 @@ class HSSolver():
     # ODE solver initial condition
     Y0 = np.hstack((h0, S0))
     # Set up ODE solver
-    ode_solver = ode(rhs).set_integrator('vode', method = 'adams', max_step = 60.0 * 5.0)
+    ode_solver = ode(rhs).set_integrator('vode', method = 'adams', max_step = 60.0, atol = 1e-6, rtol = 1e-6)
     ode_solver.set_initial_value(Y0, t0)
 
 
@@ -141,6 +141,8 @@ class HSSolver():
 
   # Step  h and S forward by dt
   def step(self, dt):
+    
+    
     # Step h and S forward
     self.ode_solver.integrate(self.model.t + dt)
 

@@ -1,5 +1,5 @@
 """
-Model inputs for intercomparisson test A3. 
+Model inputs for intercomparisson test A5. 
 """
 
 from dolfin import *
@@ -9,18 +9,18 @@ from cr_tools import *
 
 # Directory to write model inputs
 in_dir = "../../inputs/"
-out_dir = "../../inputs/A3/"
+out_dir = "../../inputs/A5/"
 mesh = Mesh(in_dir + "mesh/mesh.xml")
 V_cg = FunctionSpace(mesh, "CG", 1)
 V_cr = FunctionSpace(mesh, "CR", 1)
 
 # Write inputs to a hdf5 file
-f = HDF5File(mesh.mpi_comm(), out_dir + "inputs_A3.hdf5", 'w')
+f = HDF5File(mesh.mpi_comm(), out_dir + "inputs_A5.hdf5", 'w')
 # Write the mesh to a file
 f.write(mesh, "mesh")
 
 # Melt
-m = interpolate(Constant(5.79e-9), V_cg)
+m = interpolate(Constant(4.5e-08), V_cg)
 f.write(m, "m_0")
 
 # Sliding speed
@@ -93,8 +93,6 @@ f.write(edge_lens, "edge_lens")
 
 # Create a mask that's 0 on the boundary and 1 on the interior
 M = assemble(v_cr * ds).array()
-
-print M.min()
 
 mask = Function(V_cr)
 M[M != 0.0] = 2.0

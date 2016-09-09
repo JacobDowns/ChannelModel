@@ -76,6 +76,8 @@ class PlotTools(object):
     self.m = Function(self.V_cg)
     # Conductivity
     self.k = Function(self.V_cg)
+    # Effective pressure
+    self.N = Function(self.V_cg)
     
 
   # Get the initial potential 
@@ -111,6 +113,12 @@ class PlotTools(object):
       self.get_pfo(i)
       return assemble(self.pfo * dx) / self.area
      
+  # Get pfo at the i-th time step
+  def get_N(self, i):
+    if i < self.num_steps:
+      self.input_file.read(self.phi, "phi/vector_" + str(i))
+      self.N.vector()[:] = self.phi0.vector().array() - self.phi.vector().array()
+      return self.N
     
   # Get S at the i-th time step
   def get_S(self, i):
