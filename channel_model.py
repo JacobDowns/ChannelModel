@@ -105,16 +105,12 @@ class ChannelModel(Model):
     
     # Output directory
     self.h_out = File(self.out_dir + "h.pvd")
-    self.S_out = File(self.out_dir + "S.pvd")
     self.phi_out = File(self.out_dir + "phi.pvd")
     self.N_out = File(self.out_dir + "N.pvd")
     self.pfo_out = File(self.out_dir + "pfo.pvd")
     self.m_out = File(self.out_dir + "m.pvd")
     self.u_b_out = File(self.out_dir + "u_b.pvd")
     self.k_out = File(self.out_dir + "k.pvd")
-    
-    # Facet functions for plotting CR functions in Paraview    
-    self.ff_out_S = FacetFunctionDouble(self.mesh) 
     
     
   # Steps phi and h forward by dt
@@ -161,11 +157,9 @@ class ChannelModel(Model):
      # Load the most recent cavity height and channel height values
      num_steps = self.input_file.attributes("h")['count']
      h_last = "h/vector_" + str(num_steps - 1)
-     S_last = "S/vector_" + str(num_steps - 1)
      phi_last = "phi/vector_" + str(num_steps - 1)
       
      self.input_file.read(self.h, h_last)
-     self.input_file.read(self.S, S_last)
      self.input_file.read(self.phi, phi_last)
       
      # Get the start time for the simulation        
@@ -199,16 +193,6 @@ class ChannelModel(Model):
       h_temp = Function(self.V_cg)
       self.input_file.read(h_temp, "h_0")      
       assign(self.h, h_temp)
-      
-      # Load the initial hydraulic potential
-      phi_temp = Function(self.V_cg)
-      self.input_file.read(phi_temp, "phi_0")
-      assign(self.phi, phi_temp)
-
-      # Load the intitial channel heights
-      S_temp = Function(self.V_cr)
-      self.input_file.read(S_temp, "S_0")
-      assign(self.S, S_temp)
             
       # Use the default constant bump height
       self.h_r.assign(interpolate(Constant(self.pcs['h_r']), self.V_cg))
@@ -251,11 +235,6 @@ class ChannelModel(Model):
   # Updates functions derived from h
   def update_h(self):
     assign(self.h_prev, self.h)
-
-    
-   # Updates functions derived from S
-  def update_S(self):
-    assign(self.S_prev, self.S)
     
   
   # Write fields to pvd files for visualization
@@ -284,15 +263,6 @@ class ChannelModel(Model):
         self.q_out << self.q_func
       if 'k' in to_write:
         self.k_out << self.k
-      """if 'S' in to_write:
-        self.cr_tools.copy_cr_to_facet(self.S, self.ff_out_S)
-        self.S_out << self.ff_out_S
-      if 'h_cr' in to_write:
-        self.cr_tools.copy_cr_to_facet(self.h_cr, self.ff_out_h_cr)
-        self.h_cr_out << self.ff_out_h_cr
-      if 'N_cr' in to_write:
-        self.cr_tools.copy_cr_to_facet(self.N_cr, self.ff_out_N_cr)
-        self.N_cr_out << self.ff_out_N_cr"""
       
 
   # Write checkpoint files to an hdf5 file
@@ -301,7 +271,6 @@ class ChannelModel(Model):
 
     # Always checkpoint h and S
     self.output_file.write(self.h, "h", self.t)
-    self.output_file.write(self.S, "S", self.t)
     self.output_file.write(self.phi, "phi", self.t)
 
     if 'u_b' in to_write:
@@ -342,11 +311,8 @@ class ChannelModel(Model):
     output_file.write(self.m, 'm_0')
     output_file.write(self.u_b, 'u_b_0')
     output_file.write(self.h, "h_0")
-    output_file.write(self.S, "S_0")
     output_file.write(self.boundaries, "boundaries")
     output_file.write(self.k, "k_0")
-    output_file.write(self.k_cr, "k_c_0")
-    output_file.write(self.mask, "mask")
     output_file.write(self.phi, "phi_0")
     
     
