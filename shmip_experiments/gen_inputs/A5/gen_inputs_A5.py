@@ -11,6 +11,8 @@ from cr_tools import *
 in_dir = "../../inputs/"
 out_dir = "../../inputs/A5/"
 mesh = Mesh(in_dir + "mesh/mesh.xml")
+
+
 V_cg = FunctionSpace(mesh, "CG", 1)
 V_cr = FunctionSpace(mesh, "CR", 1)
 
@@ -27,6 +29,8 @@ f.write(m, "m_0")
 u_b = interpolate(Constant(1e-6), V_cg)
 f.write(u_b, "u_b_0")
 
+k = interpolate(Constant(5e-3), V_cg)
+f.write(k, "k_0")
 
 ### Bed and surface functions
 

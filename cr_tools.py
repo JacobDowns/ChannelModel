@@ -104,7 +104,7 @@ class CRTools(object):
     
     # Get the height difference of two vertexes on each edge
     #A = abs(assemble(self.F).array())
-    A = abs(assemble(self.F).array())
+    A = assemble(self.F).array()
     # Now divide by the edge lens
     dcg_ds = A / self.edge_lens.vector().array()
     

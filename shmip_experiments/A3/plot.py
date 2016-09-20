@@ -15,10 +15,22 @@ input_file = 'results/out.hdf5'
 a = loadtxt('data.txt', delimiter=",")
 xs1 = a[:,0]
 Ns1 = a[:,1]
+qs = a[:,4]
 print a
 
 
+pt = PlotRect(input_file)
+Ns = pt.get_int_N(pt.num_steps - 1)
 
+qs1 = pt.get_int_sheet_discharge1(pt.num_steps - 1)
+
+
+plot(xs1, qs, 'r')
+plot(pt.xs, qs1, 'b')
+show()
+
+
+quit()
 pt = PlotRect(input_file)
 Ns = pt.get_int_N(pt.num_steps - 1)
 

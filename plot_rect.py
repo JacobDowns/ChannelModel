@@ -44,7 +44,9 @@ class PlotRect(PlotTools):
     delta = pcs['delta']
     
     q = -self.k * self.h**alpha * (dot(grad(self.phi), grad(self.phi)) + phi_reg)**(delta / 2.0) * grad(self.phi)
+    self.q = q
     self.qn = dot(q, as_vector([-1, 0]))
+    self.q_mag = sqrt(dot(q, q))
     
     increments = 250
     self.xs = np.linspace(1, 100e3, increments)
@@ -108,6 +110,21 @@ class PlotRect(PlotTools):
         qs.append(int_qn([x, 20e3]))
         
       return np.array(qs)
+      
+    # Get the width integrated sheet discharge at the ith time step
+  def get_int_sheet_discharge1(self, i):
+    if i < self.num_steps:
+      self.get_h(i)
+      self.get_phi(i)
+      self.get_k(i)
+      
+      int_qn = self.integrate_y(self.q_mag)
+      
+      qs = []
+      for x in self.xs:
+        qs.append(int_qn([x, 20e3]))
+        
+      return np.array(qs) / 20e3
       
   # Get the width integrated sheet discharge at the ith time step
   def get_int_sheet_height(self, i):

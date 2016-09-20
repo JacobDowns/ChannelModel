@@ -1,13 +1,11 @@
 from dolfin import *
 from dolfin import MPI, mpi_comm_world
-from cr_tools import *
 from model import *
-from phi_solver import *
-from hs_solver import *
+from solver import *
 import sys as sys
 
 # This is necessary or else assembly of facet integrals will not work in parallel!
-parameters['ghost_mode'] = 'shared_facet'
+#parameters['ghost_mode'] = 'shared_facet'
 
 """ Wrapper class for Glads."""
 
@@ -18,14 +16,25 @@ class ChannelModel(Model):
 
     ### Initialize model variables
 
-    # CG function space
+    # Function spaces
     self.V_cg = FunctionSpace(self.mesh, "CG", 1)
-    # CR function space
     self.V_cr = FunctionSpace(self.mesh, "CR", 1)
-    # Cavity height
-    self.h = Function(self.V_cg)
-    # Chanel height
-    self.S = Function(self.V_cr)
+    
+    # Mixed function space
+    self.V = self.V_cg * self.V_cg * self.V_cr
+    # Mixed function combining phi, h, and S
+    self.u = Function(self.V)
+    # Extract phi, h, and S from u
+    (u1,self.S) = self.u.split(True)
+    (self.phi, self.h) = u1.split(True)
+  
+    # Potential at previous time step
+    self.phi_prev = Function(self.V_cg)
+    # Sheet at previous time step
+    self.h_prev = Function(self.V_cg)
+    # Channel cross sectional area at previous time step
+    self.S_prev = Function(self.V_cr)
+
     # Bed geometry
     self.B = Function(self.V_cg)
     # Ice thickness
@@ -40,40 +49,15 @@ class ChannelModel(Model):
     self.h_r = Function(self.V_cg)
     # Boundary facet function
     self.boundaries = FacetFunction("size_t", self.mesh)
-    # Hydraulic Potential
-    self.phi = Function(self.V_cg)
-    # Potential at previous time step
-    self.phi_prev = Function(self.V_cg)
     # Effective pressure
     self.N = Function(self.V_cg)
     # Water pressure
     self.p_w = Function(self.V_cg)
     # Pressure as a fraction of overburden
     self.pfo = Function(self.V_cg)
-    # A cr function mask that is 1 on interior edges and 0 on exterior edges. 
-    # Used to prevent opening on exterior edges.
-    self.mask = Function(self.V_cr)
-    # Derivative of potential over channel edges
-    self.dphi_ds_cr = Function(self.V_cr)
-    # Derivative of water pressure over channel edges
-    self.dpw_ds_cr = Function(self.V_cr)
-    # Effective pressure on edges
-    self.N_cr = Function(self.V_cr)
-    # Sheet height on edges
-    self.h_cr = Function(self.V_cr)
-    # Hydraulic conductivity on edges
-    self.k_cr = Function(self.V_cr)
-    # Stores the value of S**alpha. A workaround for a bug in Fenics that
-    # causes problems when exponentiating a CR function
-    self.S_alpha = Function(self.V_cr)
-    # Edge lengths 
-    self.edge_lens = Function(self.V_cr)
-
-
     # Load inputs and initialize input and output files    
     self.init_model()
-    # CR tools for dealing with CR functions
-    self.cr_tools = CRTools(self.mesh, self.V_cg, self.V_cr, self.edge_lens)
+    
     
     ### Derive some additional fields
     
@@ -86,9 +70,8 @@ class ChannelModel(Model):
     
     # Populate all fields derived from the primary variables
     self.update_phi()
-    self.update_h()
     self.update_S()
-    self.update_k()
+    self.update_h()
 
 
     ### Setup boundary conditions
@@ -99,9 +82,8 @@ class ChannelModel(Model):
       # Dirichlet boundary conditions
       self.d_bcs = self.model_inputs['d_bcs']    
     else :
-      # By default, a marker 0f 1 denotes the margin
-      self.d_bcs = [DirichletBC(self.V_cg, self.phi_m, self.boundaries, 1)]
-      
+      # By default, a marker of 1 denotes the margin
+      self.d_bcs = [DirichletBC(self.V.sub(0).sub(0), self.phi_m, self.boundaries, 1)]
       
     ### Newton solver parameters
       
@@ -121,12 +103,8 @@ class ChannelModel(Model):
       
       
     ### Create objects that solve the model equations
-    
-    # Potential solver
-    self.phi_solver = PhiSolver(self)
-    # Sheet height solver
-    self.hs_solver = HSSolver(self)
-      
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+    self.solver = Solver(self)
       
     ### Create output files
     
@@ -139,20 +117,14 @@ class ChannelModel(Model):
     self.m_out = File(self.out_dir + "m.pvd")
     self.u_b_out = File(self.out_dir + "u_b.pvd")
     self.k_out = File(self.out_dir + "k.pvd")
-    self.h_cr_out = File(self.out_dir + "h_cr.pvd")    
-    self.N_cr_out = File(self.out_dir + "N_cr.pvd")
     
     # Facet functions for plotting CR functions in Paraview    
-    self.ff_out_S = FacetFunctionDouble(self.mesh)
-    self.ff_out_N_cr = FacetFunctionDouble(self.mesh)
-    self.ff_out_h_cr = FacetFunctionDouble(self.mesh)  
+    self.ff_out_S = FacetFunctionDouble(self.mesh) 
     
     
   # Steps phi and h forward by dt
   def step(self, dt):
-    self.phi_solver.step(dt)
-    self.hs_solver.step(dt)
-
+    self.solver.step(dt)
     # Update model time
     self.t += dt
     
@@ -171,22 +143,13 @@ class ChannelModel(Model):
   # Initialize the model state for a new simulation
   def start_simulation(self):
     self.load_inputs()
-  
-    # Read in the initial cavity height
-    self.input_file.read(self.h, "h_0")
-    # Load the intitial channel heights
-    self.input_file.read(self.S, "S_0")
-    # Load the initial hydraulic potential
-    self.input_file.read(self.phi, "phi_0")
-    
+
     # Write the initial conditions. These can be used as defaults to initialize
     # the model if a simulation crashes and we want to start it again
     self.output_file.write(self.h, "h_0")
     self.output_file.write(self.m, "m_0")
     self.output_file.write(self.u_b, "u_b_0")
     self.output_file.write(self.phi, "phi_0")
-    self.output_file.write(self.mask, "mask")
-    self.output_file.write(self.edge_lens, "edge_lens")
     self.output_file.write(self.mesh, "mesh")
     self.output_file.write(self.B, "B")
     self.output_file.write(self.H, "H")
@@ -221,49 +184,51 @@ class ChannelModel(Model):
     try :
       # Bed elevation 
       self.input_file.read(self.B, "B")
+      
       # Ice thickness
       self.input_file.read(self.H, "H")    
-      # Edge mask
-      self.input_file.read(self.mask, "mask")
-      # Edge lengths
-      self.input_file.read(self.edge_lens, "edge_lens")
+      
       # Boundary facet function
       self.input_file.read(self.boundaries, "boundaries")
-      # Hydraulic potential
-      self.assign_func(self.phi, "phi_0")
-      self.phi_prev.assign(self.phi)
+      
       # Melt input
-      self.assign_func(self.m, "m_0")
+      self.input_file.read(self.m, "m_0")
+
       # Sliding speed
-      self.assign_func(self.u_b, "u_b_0")   
-  
+      self.input_file.read(self.u_b, "u_b_0")       
+
+      # Hydraulic conductivity
+      self.input_file.read(self.k, "k_0")         
+
+      # Read in the initial cavity height
+      h_temp = Function(self.V_cg)
+      self.input_file.read(h_temp, "h_0")      
+      assign(self.h, h_temp)
+      
+      # Load the initial hydraulic potential
+      phi_temp = Function(self.V_cg)
+      self.input_file.read(phi_temp, "phi_0")
+      assign(self.phi, phi_temp)
+
+      # Load the intitial channel heights
+      S_temp = Function(self.V_cr)
+      self.input_file.read(S_temp, "S_0")
+      assign(self.S, S_temp)
+            
+      # Use the default constant bump height
+      self.h_r.assign(interpolate(Constant(self.pcs['h_r']), self.V_cg))
+      
     except Exception as e:
       # If we can't find one of these model inputs we're done 
       print >> sys.stderr, e
       print >> sys.stderr, "Could not load model inputs."
       sys.exit(1)
-    
-    try :
-      # If we get a hydraulic conductivity expression or function use it
-      self.assign_func(self.k, 'k')
-      self.k.assign(project(self.k, self.V_cg))
-    except :
-      # Otherwise we'll just use use the default constant conductivity 
-      self.k.assign(interpolate(Constant(self.pcs['k']), self.V_cg))
-      
-    try :
-      # If we get a bump height function use it
-      self.assign_func(self.h_r, 'h_r')
-    except :
-      # Otherwise we'll just use use the default constant bump height
-      self.h_r.assign(interpolate(Constant(self.pcs['h_r']), self.V_cg))
       
       
   # Update the effective pressure to reflect current value of phi
   def update_N(self):
     self.N.vector().set_local(self.phi_0.vector().array() - self.phi.vector().array())
     self.N.vector().apply("insert")
-    self.update_N_cr()
     
   
   # Update the water pressure to reflect current value of phi
@@ -281,52 +246,21 @@ class ChannelModel(Model):
     self.pfo.vector().apply("insert")
     
   
-  # Updates all fields derived from phi
+  # Updates functions derived from phi
   def update_phi(self):
-    self.phi_prev.assign(self.phi)
-    self.update_dphi_ds_cr()
+    assign(self.phi_prev, self.phi)
     self.update_pw()
     self.update_N()
 
-
-  # Updates all fields derived from h    
+    
+  # Updates functions derived from h
   def update_h(self):
-    self.update_h_cr()
+    assign(self.h_prev, self.h)
+
     
-    
-  # Updates all fields derived from S
+   # Updates functions derived from S
   def update_S(self):
-    self.update_S_alpha()
-    
-    
-  # Update the edge derivatives of the potential to reflect current value of phi
-  def update_dphi_ds_cr(self):
-    self.cr_tools.ds(self.phi, self.dphi_ds_cr)
-    
-  
-  # Update the edge derivatives of water pressure to reflect current value water pressure
-  def update_dpw_ds_cr(self):
-    self.cr_tools.ds(self.p_w, self.dpw_ds_cr)
-    
-  
-  # Update effective pressure on edge midpoints to reflect current value of phi
-  def update_N_cr(self):
-    self.cr_tools.midpoint(self.N, self.N_cr)
-    
-  
-  # Update the edge midpoint values h_cr to reflect the current value of h
-  def update_h_cr(self):
-    self.cr_tools.midpoint(self.h, self.h_cr)
-    
-  
-  # Update S**alpha to reflect current value of S
-  def update_S_alpha(self):
-    alpha = self.pcs['alpha']
-    self.S_alpha.vector().set_local(self.S.vector().array()**alpha)
-    
-  # Update fields derived from k
-  def update_k(self):
-    self.cr_tools.midpoint(self.k, self.k_cr)
+    assign(self.S_prev, self.S)
     
   
   # Write fields to pvd files for visualization
@@ -400,7 +334,6 @@ class ChannelModel(Model):
   # Sets the hydraulic conductivity
   def set_k(self, new_k):
     self.k.assign(project(new_k, self.V_cg))
-    self.update_k()
     
   
   # Write out a steady state file we can use to start new simulations
@@ -416,7 +349,6 @@ class ChannelModel(Model):
     output_file.write(self.h, "h_0")
     output_file.write(self.S, "S_0")
     output_file.write(self.boundaries, "boundaries")
-    output_file.write(self.edge_lens, "edge_lens")
     output_file.write(self.k, "k_0")
     output_file.write(self.k_cr, "k_c_0")
     output_file.write(self.mask, "mask")
