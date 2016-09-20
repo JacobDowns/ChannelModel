@@ -18,22 +18,18 @@ class ChannelModel(Model):
 
     # Function spaces
     self.V_cg = FunctionSpace(self.mesh, "CG", 1)
-    self.V_cr = FunctionSpace(self.mesh, "CR", 1)
     
     # Mixed function space
-    self.V = self.V_cg * self.V_cg * self.V_cr
-    # Mixed function combining phi, h, and S
+    self.V = self.V_cg * self.V_cg
+    # Mixed function combining phi, h
     self.u = Function(self.V)
     # Extract phi, h, and S from u
-    (u1,self.S) = self.u.split(True)
-    (self.phi, self.h) = u1.split(True)
+    (self.phi, self.h) = self.u.split(True)
   
     # Potential at previous time step
     self.phi_prev = Function(self.V_cg)
     # Sheet at previous time step
     self.h_prev = Function(self.V_cg)
-    # Channel cross sectional area at previous time step
-    self.S_prev = Function(self.V_cr)
 
     # Bed geometry
     self.B = Function(self.V_cg)
@@ -70,7 +66,6 @@ class ChannelModel(Model):
     
     # Populate all fields derived from the primary variables
     self.update_phi()
-    self.update_S()
     self.update_h()
 
 
