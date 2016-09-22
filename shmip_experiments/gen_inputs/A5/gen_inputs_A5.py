@@ -18,6 +18,7 @@ V_cr = FunctionSpace(mesh, "CR", 1)
 
 # Write inputs to a hdf5 file
 f = HDF5File(mesh.mpi_comm(), out_dir + "inputs_A5.hdf5", 'w')
+
 # Write the mesh to a file
 f.write(mesh, "mesh")
 
