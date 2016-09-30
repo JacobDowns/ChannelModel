@@ -5,7 +5,7 @@ from solver import *
 import sys as sys
 
 # This is necessary or else assembly of facet integrals will not work in parallel!
-#parameters['ghost_mode'] = 'shared_facet'
+parameters['ghost_mode'] = 'shared_facet'
 
 """ Wrapper class for Glads."""
 
@@ -17,23 +17,23 @@ class ChannelModel(Model):
     ### Initialize model variables
 
     # Function spaces
+    # Typical CG FEM space
     self.V_cg = FunctionSpace(self.mesh, "CG", 1)
-    self.V_cr = FunctionSpace(self.mesh, "CR", 1)
-    
-    # Mixed function space
-    self.V = self.V_cg * self.V_cg * self.V_cr
-    # Mixed function combining phi, h, and S
-    self.u = Function(self.V)
-    # Extract phi, h, and S from u
-    (u1,self.S) = self.u.split(True)
-    (self.phi, self.h) = u1.split(True)
-  
+    # Space of trace elements that have constant values on facets
+    self.V_tr = FunctionSpace(self.mesh, FiniteElement("Discontinuous Lagrange Trace", "triangle", 0))
+
+    # Hydraulic potential    
+    self.phi = Function(self.V_cg)
+    # Sheet height
+    self.h = Function(self.V_cg)
+    # Channel cross sectional area
+    self.S = Function(self.V_tr)
     # Potential at previous time step
     self.phi_prev = Function(self.V_cg)
     # Sheet at previous time step
     self.h_prev = Function(self.V_cg)
     # Channel cross sectional area at previous time step
-    self.S_prev = Function(self.V_cr)
+    self.S_prev = Function(self.V_tr)
 
     # Bed geometry
     self.B = Function(self.V_cg)
@@ -55,6 +55,7 @@ class ChannelModel(Model):
     self.p_w = Function(self.V_cg)
     # Pressure as a fraction of overburden
     self.pfo = Function(self.V_cg)
+    
     # Load inputs and initialize input and output files    
     self.init_model()
     
@@ -78,12 +79,24 @@ class ChannelModel(Model):
     
     # If there are boundary conditions specified, use them. Otherwise apply
     # default bc of 0 pressure on the margin
-    if 'd_bcs' in self.model_inputs:
+    
+    self.d_bcs = []    
+    """if 'd_bcs' in self.model_inputs:
       # Dirichlet boundary conditions
       self.d_bcs = self.model_inputs['d_bcs']    
-    else :
+    elif 'point_bcs' in self.model_inputs:
+      # Dictionary entry should be a list of subdomains
+      for i in range(len(self.model_inputs['point_bcs'])):
+        # Get a subdomain
+        sub = self.model_inputs['point_bcs'][i]
+        # Apply 0 pressure at the point / points specified by the subdomain
+        bc = DirichletBC(self.V_cg, self.phi_m, sub, "pointwise")
+        self.d_bcs.append(bc)
+    else :"""
       # By default, a marker of 1 denotes the margin
-      self.d_bcs = [DirichletBC(self.V.sub(0).sub(0), self.phi_m, self.boundaries, 1)]
+    self.d_bcs.append(DirichletBC(self.V_cg, self.phi_m, self.boundaries, 1))
+      
+    #plot(self.boundaries, interactive = True)
       
     ### Newton solver parameters
       
@@ -97,7 +110,7 @@ class ChannelModel(Model):
       prm['newton_solver']['relative_tolerance'] = 1e-6
       prm['newton_solver']['absolute_tolerance'] = 1e-6
       prm['newton_solver']['error_on_nonconvergence'] = False
-      prm['newton_solver']['maximum_iterations'] = 30
+      prm['newton_solver']['maximum_iterations'] = 25
       
       self.newton_params = prm
       
@@ -184,37 +197,22 @@ class ChannelModel(Model):
     try :
       # Bed elevation 
       self.input_file.read(self.B, "B")
-      
       # Ice thickness
       self.input_file.read(self.H, "H")    
-      
       # Boundary facet function
       self.input_file.read(self.boundaries, "boundaries")
-      
       # Melt input
       self.input_file.read(self.m, "m_0")
-
       # Sliding speed
-      self.input_file.read(self.u_b, "u_b_0")       
-
+      self.input_file.read(self.u_b, "u_b_0")
       # Hydraulic conductivity
-      self.input_file.read(self.k, "k_0")         
-
-      # Read in the initial cavity height
-      h_temp = Function(self.V_cg)
-      self.input_file.read(h_temp, "h_0")      
-      assign(self.h, h_temp)
-      
+      self.input_file.read(self.k, "k_0")     
       # Load the initial hydraulic potential
-      phi_temp = Function(self.V_cg)
-      self.input_file.read(phi_temp, "phi_0")
-      assign(self.phi, phi_temp)
-
-      # Load the intitial channel heights
-      S_temp = Function(self.V_cr)
-      self.input_file.read(S_temp, "S_0")
-      assign(self.S, S_temp)
-            
+      self.input_file.read(self.phi, "phi_0")
+      # Read in the initial cavity height
+      self.input_file.read(self.h, "h_0")      
+      # Load the intitial channel area 
+      self.input_file.read(self.S, "S_0")
       # Use the default constant bump height
       self.h_r.assign(interpolate(Constant(self.pcs['h_r']), self.V_cg))
       
@@ -248,9 +246,40 @@ class ChannelModel(Model):
   
   # Updates functions derived from phi
   def update_phi(self):
-    assign(self.phi_prev, self.phi)
+    self.phi_apply_bounds()
+    #assign(self.phi_prev, self.phi)
     self.update_pw()
     self.update_N()
+    
+   # Correct the potential so that it is above 0 pressure and below overburden.
+  # Return True if underpressure was present?
+  def phi_apply_bounds(self):
+    
+    # Array of values for phi
+    phi_vals = self.phi.vector().array()
+    # Array of minimum values
+    phi_max_vals = self.phi_0.vector().array()
+    # Array of maximum values
+    phi_min_vals = self.phi_m.vector().array()
+    
+    # Indexes in the array of phi vals that are overpressure
+    indexes_over = phi_vals > phi_max_vals + 1e-3
+    # Indexes that are underpressure
+    indexes_under = phi_vals < phi_min_vals - 1e-3    
+    
+    phi_vals[indexes_over] = phi_max_vals[indexes_over]
+    phi_vals[indexes_under] = phi_min_vals[indexes_under]
+  
+    # Update phi    
+    self.phi.vector().set_local(phi_vals)
+    self.phi.vector().apply("insert")
+    
+    # If there were over or underpressure values return true
+    if indexes_over.any() or indexes_under.any():
+      return True
+    
+    # If pressure was in the correct range return false
+    return False
 
     
   # Updates functions derived from h
@@ -350,8 +379,6 @@ class ChannelModel(Model):
     output_file.write(self.S, "S_0")
     output_file.write(self.boundaries, "boundaries")
     output_file.write(self.k, "k_0")
-    output_file.write(self.k_cr, "k_c_0")
-    output_file.write(self.mask, "mask")
     output_file.write(self.phi, "phi_0")
     
     

@@ -20,12 +20,8 @@ class PlotTools(object):
     self.mesh = Mesh()
     self.input_file.read(self.mesh, "mesh", False)  
     self.V_cg = FunctionSpace(self.mesh, "CG", 1)
-    self.V_cr = FunctionSpace(self.mesh, "CR", 1)
+    self.V_cr = FunctionSpace(self.mesh, FiniteElement("Discontinuous Lagrange Trace", "triangle", 0))
     
-    # Create a CR tools object for plotting CR functions
-    self.edge_lens = Function(self.V_cr)
-    self.input_file.read(self.edge_lens, "edge_lens")
-    self.cr_tools = CRTools(self.mesh, self.V_cg, self.V_cr, self.edge_lens)
     
     # Get the number of time steps
     self.num_steps = 0
@@ -50,9 +46,6 @@ class PlotTools(object):
     f = interpolate(Constant(1.0), self.V_cg)
     self.area = assemble(f * dx)
     
-    # Initial conductivity
-    self.k_0 = Function(self.V_cg)
-    self.input_file.read(self.k_0, "k_0")
     # Initial melt
     self.m_0 = Function(self.V_cg)
     self.input_file.read(self.m_0, "m_0")    
@@ -64,8 +57,6 @@ class PlotTools(object):
     
     # Channel area
     self.S = Function(self.V_cr)
-    #Channel area as a facet function
-    self.S_ff = FacetFunctionDouble(self.mesh)
     # Sheet height
     self.h = Function(self.V_cg)
     # Hydraulic potential
@@ -115,24 +106,17 @@ class PlotTools(object):
      
   # Get pfo at the i-th time step
   def get_N(self, i):
-    if i < self.num_steps:
-      self.input_file.read(self.phi, "phi/vector_" + str(i))
-      self.N.vector()[:] = self.phi0.vector().array() - self.phi.vector().array()
-      return self.N
+    #if i < self.num_steps:
+    #self.input_file.read(self.phi, "phi/vector_" + str(i))
+    self.N.vector()[:] = self.phi0.vector().array() - self.phi_0.vector().array()
+    return self.N
     
   # Get S at the i-th time step
   def get_S(self, i):
-    if i < self.num_steps:
-      self.input_file.read(self.S, "S/vector_" + str(i))
-      return self.S
-
-
-  # Get S at the i-th time step as a facet function
-  def get_S_ff(self, i):
-    if i < self.num_steps:
-      self.get_S(i)
-      self.cr_tools.copy_cr_to_facet(self.S, self.S_ff)
-      return self.S_ff
+    #if i < self.num_steps:
+    #self.input_file.read(self.S, "S/vector_" + str(i))
+    self.input_file.read(self.S, "S_0")
+    return self.S
         
   
   # Get m at the i-th time step

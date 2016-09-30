@@ -1,4 +1,6 @@
 from dolfin import *
+import ufl
+ufl.algorithms.apply_derivatives.CONDITIONAL_WORKAROUND = True
 
 """ Solves phi with h and S fixed."""
 
@@ -7,14 +9,12 @@ class Solver(object):
   def __init__(self, model):
     
     ### Get function spaces
-    V = model.V
     V_cg = model.V_cg
-    V_cr = model.V_cr
+    V_tr = model.V_tr
+    
     
     ### Get a bunch of fields from the model 
     
-    # Combined unknown with phi, h, and S
-    u = model.u
     # Hydraulic potential 
     phi = model.phi
     # Potential at previous time step
@@ -69,7 +69,6 @@ class Solver(object):
     c_t = model.pcs['c_t'] 
     # Exponents
     alpha = model.pcs['alpha']
-    beta = model.pcs['beta']
     delta = model.pcs['delta']
     # Regularization parameter
     phi_reg = Constant(1e-15)
@@ -78,9 +77,8 @@ class Solver(object):
     ### Define variational forms for each unknown phi, h, and S
   
     # Test functions 
-    (a, theta3) = TestFunctions(V)
-    theta1 = a[0]
-    theta2 = a[1]
+    theta_cg = TestFunction(V_cg)
+    theta_tr = TestFunction(V_tr)
     
     
     ### Expressions used in the variational forms
@@ -91,6 +89,7 @@ class Solver(object):
     q = -k * h**alpha * (dot(grad(phi), grad(phi)) + phi_reg)**(delta / 2.0) * grad(phi)
     # Opening term 
     w = conditional(gt(h_r - h, 0.0), u_b * (h_r - h) / Constant(l_r), 0.0)
+    #w = u_b * (h_r - h) / Constant(l_r)    
     # Closing term
     v = Constant(A) * h * N**3    
     # Normal and tangent vectors 
@@ -99,7 +98,7 @@ class Solver(object):
     # Derivative of phi along channel 
     dphi_ds = dot(grad(phi), t)
     # Discharge through channels
-    Q = -Constant(k_c) * S**alpha * abs(dphi_ds + phi_reg)**delta * dphi_ds
+    Q = -Constant(k_c) * (S_prev + phi_reg)**alpha * abs(dphi_ds + phi_reg)**delta * dphi_ds
     # Approximate discharge of sheet in direction of channel
     q_c = -k * h**alpha * abs(dphi_ds + phi_reg)**delta * dphi_ds
     # Energy dissipation 
@@ -120,39 +119,82 @@ class Solver(object):
   
     ### First the variational form for hydraulic potential PDE
   
-    F1 = Constant(e_v / (rho_w * g)) * (phi - phi_prev) * theta1 * dx
-    F1 += dt * (-dot(grad(theta1), q) + (w - v - m) * theta1) * dx 
-    F1 += dt * (-dot(grad(theta1), t) * Q + (w_c - v_c) * theta1)('+') * dS
+    F_phi = Constant(e_v / (rho_w * g)) * (phi - phi_prev) * theta_cg * dx
+    F_phi += dt * (-dot(grad(theta_cg), q) + (w - v - m) * theta_cg) * dx 
+    F_phi += dt * (-dot(grad(theta_cg), t) * Q + (w_c - v_c) * theta_cg)('+') * dS
+    
+    d_phi = TrialFunction(V_cg)
+    J_phi = derivative(F_phi, phi, d_phi) 
+
 
     ### Variational form for the sheet height ODE
-    F2 = ((h - h_prev) - (w - v) * dt) * theta2 * dx
+    F_h = ((h - h_prev) - (w - v) * dt) * theta_cg * dx
     
-    ### Variational form for the sheet height ODE
-    F3 = (((S - S_prev) - ((Xi - Pi) / Constant(rho_i * L)) * dt) * theta3)('+') * dS
+    d_h = TrialFunction(V_cg)
+    J_h = derivative(F_h, h, d_h) 
     
-    ### Combined variational form
-    F = F1 + F2 + F3
-
-    du = TrialFunction(V)
-    J = derivative(F, u, du) 
+    
+    ### Variational form for the channel cross sectional area ODE
+    F_S = (((S - S_prev) - (((Xi - Pi) / Constant(rho_i * L)) - v_c) * dt) * theta_tr)('+') * dS
+    # Add a term so the Jacobian is non-singular
+    F_S += S * theta_tr * ds
+    
+    d_S = TrialFunction(V_tr)
+    J_S = derivative(F_S, S, d_S) 
     
     
     ### Assign local variables
-
-    self.F = F
-    self.J = J
+    
+    self.phi = phi
+    self.h = h
+    self.S = S
+    self.F_phi = F_phi
+    self.F_h = F_h
+    self.F_S = F_S
+    self.J_phi = J_phi
+    self.J_h = J_h
+    self.J_S = J_S
     self.model = model
     self.dt = dt
+    
+   
+  ### Step PDE for phi forward by dt
+  def step_phi(self, dt):
+    self.dt.assign(dt)
+    # Solve for potential
+    solve(self.F_phi == 0, self.phi, self.model.d_bcs, J = self.J_phi, solver_parameters = self.model.newton_params)
+    # Update phi
+    self.model.update_phi()  
+    
+    
+  ### Step ODE for h forward by dt
+  def step_h(self, dt):
+    self.dt.assign(dt)
+    # Solve ODE
+    solve(self.F_h == 0, self.h, J = self.J_h, solver_parameters = self.model.newton_params)
+    # Update h
+    self.model.update_h()
+    
+    
+  ### Step PDE for S forward by dt
+  def step_S(self, dt):
+    self.dt.assign(dt)
+    # Solve ODE
+    solve(self.F_S == 0, self.S, J = self.J_S, solver_parameters = self.model.newton_params)
+    # Update S
+    self.model.update_S()
 
 
   # Steps the potential forward by dt
   def step(self, dt):
-    self.dt.assign(dt)
-    # Solve for potential
-    solve(self.F == 0, self.model.phi, self.model.d_bcs, J = self.J, solver_parameters = self.model.newton_params)
-    # Derive values from the new potential 
-    self.model.update_phi()
-    self.update_h()
-    self.update_S()
+    # Note : order matters!
+    self.step_phi(dt)
+    # Step s forward by dt
+    self.step_S(dt)
+    # Step h forward by dt
+    self.step_h(dt)
+  
+    
+
 
   

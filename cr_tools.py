@@ -1,38 +1,22 @@
 from dolfin import *
 import numpy as np
 
-# Computes directional of CG functions along edges as well as midpoints of CG
-# functions along edges in parallel
 class CRTools(object):
   
-  def __init__(self, mesh, V_cg, V_cr, edge_lens) :
+  def __init__(self, mesh) :
     self.mesh = mesh
-    # DG function Space
-    self.V_cg = V_cg
     # CR function space
     self.V_cr = V_cr
     # Process
     self.MPI_rank = MPI.rank(mpi_comm_world())
     # Compute a map from local facets to global edge indexs
-    #self.compute_local_facet_to_global_edge_index_map()
+    self.compute_local_facet_to_global_edge_index_map()
     # Compute a map from local edges to global edge indexes
-    #self.compute_local_edge_to_global_edge_index_map()
-    # Compute local edge lengths
-    self.edge_lens = edge_lens
+    self.compute_local_edge_to_global_edge_index_map()
     
-    # We'll set up a form that allows us to take the derivative of CG functions
-    # over edges 
-    self.U = Function(V_cg)
-    # CR test function
-    v_cr = TestFunction(V_cr)
-    # Facet and tangent normals
-    n = FacetNormal(mesh)
-    t = as_vector([n[1], -n[0]])
-    # Directional derivative form
-    self.F = (dot(grad(self.U), t) * v_cr)('+') * dS
-    
+
     # Facet function for plotting 
-    #self.ff_plot = FacetFunctionDouble(mesh)
+    self.ff_plot = FacetFunctionDouble(mesh)
     
     
   # Copies a CR function to a facet function
@@ -96,26 +80,6 @@ class CRTools(object):
     self.local_edge_to_global_edge_index_map = np.zeros(len(f.vector().array()), dtype = 'intc')
     for i in range(len(f.vector().array())):
       self.local_edge_to_global_edge_index_map[i] = self.V_cr.dofmap().local_to_global_index(i)
-
-
-  # Computes the directional derivative of a CG function over edges 
-  def ds(self, cg, cr):
-    self.U.assign(cg)
-    
-    # Get the height difference of two vertexes on each edge
-    #A = abs(assemble(self.F).array())
-    A = assemble(self.F).array()
-    # Now divide by the edge lens
-    dcg_ds = A / self.edge_lens.vector().array()
-    
-    cr.vector().set_local(dcg_ds)
-    cr.vector().apply("insert") 
-
-  
-  # Computes the value of a CG functions at the midpoint of edges and copies
-  # the result to a CR function
-  def midpoint(self, cg, cr):
-    cr.assign(interpolate(cg, self.V_cr))
   
   
   # Plots a CR function
