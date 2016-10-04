@@ -9,8 +9,15 @@ from channel_model import *
 from dolfin import MPI, mpi_comm_world
 
 MPI_rank = MPI.rank(mpi_comm_world())
-input_file = '../inputs/A6/inputs_A6.hdf5'
-out_dir = 'results'
+
+#input_file = '../inputs/A6/inputs_A6.hdf5'
+#input_file = 'results/steady.hdf5'
+#input_file = 'results1/steady.hdf5'
+#input_file = 'results2/steady.hdf5'
+#input_file = 'results3/steady.hdf5'
+input_file = 'results4/steady.hdf5'
+out_dir = 'results5'
+#out_dir = 'results1'
 
 
 ### Setup the model
@@ -29,7 +36,7 @@ model = ChannelModel(model_inputs)
 # Seconds per day
 spd = pcs['spd']
 # End time
-T = 4000.0 * spd
+T = 1000.0 * spd
 # Time step
 dt = spd / 4.0
 # Iteration count

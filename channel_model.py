@@ -137,9 +137,10 @@ class ChannelModel(Model):
     
   # Steps phi and h forward by dt
   def step(self, dt):
-    self.solver.step(dt)
     # Update model time
     self.t += dt
+    self.solver.step(dt)
+
     
   
   # Look at the input file to check if we're starting or continuing a simulation
@@ -246,8 +247,8 @@ class ChannelModel(Model):
   
   # Updates functions derived from phi
   def update_phi(self):
-    self.phi_apply_bounds()
-    #assign(self.phi_prev, self.phi)
+    #self.phi_apply_bounds()
+    assign(self.phi_prev, self.phi)
     self.update_pw()
     self.update_N()
     
@@ -318,15 +319,6 @@ class ChannelModel(Model):
         self.q_out << self.q_func
       if 'k' in to_write:
         self.k_out << self.k
-      """if 'S' in to_write:
-        self.cr_tools.copy_cr_to_facet(self.S, self.ff_out_S)
-        self.S_out << self.ff_out_S
-      if 'h_cr' in to_write:
-        self.cr_tools.copy_cr_to_facet(self.h_cr, self.ff_out_h_cr)
-        self.h_cr_out << self.ff_out_h_cr
-      if 'N_cr' in to_write:
-        self.cr_tools.copy_cr_to_facet(self.N_cr, self.ff_out_N_cr)
-        self.N_cr_out << self.ff_out_N_cr"""
       
 
   # Write checkpoint files to an hdf5 file

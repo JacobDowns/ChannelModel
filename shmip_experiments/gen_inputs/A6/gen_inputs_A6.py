@@ -5,7 +5,6 @@ Model inputs for intercomparisson test A6.
 from dolfin import *
 import numpy as np
 from constants import *
-from cr_tools import *
 
 # Directory to write model inputs
 in_dir = "../../inputs/"
