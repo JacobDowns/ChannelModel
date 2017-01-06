@@ -16,25 +16,23 @@ class ChannelModel(Model):
 
     ### Initialize model variables
 
-    # Function spaces
+    ## Function spaces
     # Typical CG FEM space
     self.V_cg = FunctionSpace(self.mesh, "CG", 1)
     # Space of trace elements that have constant values on facets
     self.V_tr = FunctionSpace(self.mesh, FiniteElement("Discontinuous Lagrange Trace", "triangle", 0))
 
+    ## Primary model unknowns
     # Hydraulic potential    
     self.phi = Function(self.V_cg)
+    # Potential at previous time step
+    self.phi_prev = Function(self.V_cg)
     # Sheet height
     self.h = Function(self.V_cg)
     # Channel cross sectional area
     self.S = Function(self.V_tr)
-    # Potential at previous time step
-    self.phi_prev = Function(self.V_cg)
-    # Sheet at previous time step
-    self.h_prev = Function(self.V_cg)
-    # Channel cross sectional area at previous time step
-    self.S_prev = Function(self.V_tr)
 
+    ## Other fields
     # Bed geometry
     self.B = Function(self.V_cg)
     # Ice thickness
@@ -55,6 +53,29 @@ class ChannelModel(Model):
     self.p_w = Function(self.V_cg)
     # Pressure as a fraction of overburden
     self.pfo = Function(self.V_cg)
+    # Function for visualizing flux
+    self.V_cg_vec = VectorFunctionSpace(self.mesh, "CG", 1)
+    self.q_func = Function(self.V_cg_vec)
+    # Normal and tangent vectors 
+    self.n = FacetNormal(model.mesh)
+    self.t = as_vector([n[1], -n[0]])
+    # Derivative of phi along channel s
+    self.dphi_ds = dot(grad(phi), t)
+    # Derivative of p_w along channel s
+    self.dpw_ds = dot(grad(p_w), t)
+
+    ## Stuff used to compute fields along channel edges 
+    # Sheet height at channel midpoints
+    self.h_tr = Function(self.V_tr)
+    # Directional derivatives of potential along channel edges
+    self.dphi_ds_tr = Function(self.V_tr)
+    # Directional derivatives of water pressure along channel edges
+    self.dpw_ds_tr = Function(self.V_tr)
+    # A tr test function
+    self.v_tr = TestFunction(self.V_tr)
+    # Vector of edge lengths
+    self.edge_lens = assemble(self.v_tr * dS)
+    
     
     # Load inputs and initialize input and output files    
     self.init_model()
@@ -71,7 +92,6 @@ class ChannelModel(Model):
     
     # Populate all fields derived from the primary variables
     self.update_phi()
-    self.update_S()
     self.update_h()
 
 
@@ -81,7 +101,7 @@ class ChannelModel(Model):
     # default bc of 0 pressure on the margin
     
     self.d_bcs = []    
-    """if 'd_bcs' in self.model_inputs:
+    if 'd_bcs' in self.model_inputs:
       # Dirichlet boundary conditions
       self.d_bcs = self.model_inputs['d_bcs']    
     elif 'point_bcs' in self.model_inputs:
@@ -92,9 +112,9 @@ class ChannelModel(Model):
         # Apply 0 pressure at the point / points specified by the subdomain
         bc = DirichletBC(self.V_cg, self.phi_m, sub, "pointwise")
         self.d_bcs.append(bc)
-    else :"""
+    else :
       # By default, a marker of 1 denotes the margin
-    self.d_bcs.append(DirichletBC(self.V_cg, self.phi_m, self.boundaries, 1))
+      self.d_bcs.append(DirichletBC(self.V_cg, self.phi_m, self.boundaries, 1))
       
     #plot(self.boundaries, interactive = True)
       
@@ -110,7 +130,7 @@ class ChannelModel(Model):
       prm['newton_solver']['relative_tolerance'] = 1e-6
       prm['newton_solver']['absolute_tolerance'] = 1e-6
       prm['newton_solver']['error_on_nonconvergence'] = False
-      prm['newton_solver']['maximum_iterations'] = 25
+      prm['newton_solver']['maximum_iterations'] = 20
       
       self.newton_params = prm
       
@@ -130,6 +150,7 @@ class ChannelModel(Model):
     self.m_out = File(self.out_dir + "m.pvd")
     self.u_b_out = File(self.out_dir + "u_b.pvd")
     self.k_out = File(self.out_dir + "k.pvd")
+    self.q_out = File(self.out_dir + "q.pvd")
     
     # Facet functions for plotting CR functions in Paraview    
     self.ff_out_S = FacetFunctionDouble(self.mesh) 
@@ -138,9 +159,8 @@ class ChannelModel(Model):
   # Steps phi and h forward by dt
   def step(self, dt):
     # Update model time
-    self.t += dt
     self.solver.step(dt)
-
+    self.t += dt
     
   
   # Look at the input file to check if we're starting or continuing a simulation
@@ -213,7 +233,8 @@ class ChannelModel(Model):
       # Read in the initial cavity height
       self.input_file.read(self.h, "h_0")      
       # Load the intitial channel area 
-      self.input_file.read(self.S, "S_0")
+      #self.input_file.read(self.S, "S_0")
+      self.S.assign(interpolate(Constant(1e-10), self.V_tr))
       # Use the default constant bump height
       self.h_r.assign(interpolate(Constant(self.pcs['h_r']), self.V_cg))
       
@@ -232,27 +253,43 @@ class ChannelModel(Model):
   
   # Update the water pressure to reflect current value of phi
   def update_pw(self):
+    # Compute water pressure
     self.p_w.vector().set_local(self.phi.vector().array() - self.phi_m.vector().array())
     self.p_w.vector().apply("insert")
+    # Update derivativews of pw along channel edges
+    self.dpw_ds_tr.set_local(assemble((self.dpw_ds * self.v_tr)('+')) / self.edge_lens.array())
+    self.dpw_ds_tr.apply("insert")
+    # Update pressure as fraction of overburden 
     self.update_pfo()
     
   
   # Update the pressure as a fraction of overburden to reflect the current 
   # value of phi
   def update_pfo(self):
-    # Compute overburden pressure
     self.pfo.vector().set_local(self.p_w.vector().array() / self.p_i.vector().array())
     self.pfo.vector().apply("insert")
     
   
   # Updates functions derived from phi
   def update_phi(self):
-    #self.phi_apply_bounds()
+    # Update derivatives of phi along channel edges
+    self.dphi_ds_tr.vector().set_local(assemble((self.dphi_ds * self.v_tr)('+') * dS).array() / self.edge_lens.array())
+    self.dphi_ds_tr.vector().apply("insert")    
+    # Update phi_prev for backward Euler time stepping
     assign(self.phi_prev, self.phi)
+    # Update water pressure
     self.update_pw()
+    # Update effective pressure
     self.update_N()
     
-   # Correct the potential so that it is above 0 pressure and below overburden.
+    
+  # Updates functions derived from h
+  def update_h(self):
+    self.h_tr.vector().set_local(assemble((self.h * self.v_tr)('+') * dS).array() / self.edge_lens.array())
+    self.h_tr.vector().apply("insert")    
+    
+    
+  # Correct the potential so that it is above 0 pressure and below overburden.
   # Return True if underpressure was present?
   def phi_apply_bounds(self):
     
@@ -281,16 +318,6 @@ class ChannelModel(Model):
     
     # If pressure was in the correct range return false
     return False
-
-    
-  # Updates functions derived from h
-  def update_h(self):
-    assign(self.h_prev, self.h)
-
-    
-   # Updates functions derived from S
-  def update_S(self):
-    assign(self.S_prev, self.S)
     
   
   # Write fields to pvd files for visualization
@@ -308,14 +335,12 @@ class ChannelModel(Model):
         self.N_out << self.N
       if 'pfo' in to_write:
         self.pfo_out << self.pfo
-      if 'u' in to_write:
-        self.u_out << self.phi_solver.u
       if 'm' in to_write:
         self.m_out << self.m
       if 'u_b' in to_write:
         self.u_b_out << self.u_b
       if 'q' in to_write:
-        self.q_func.assign(project(self.phi_solver.q, self.V_cg))
+        self.q_func.assign(project(self.solver.q, self.V_cg_vec))
         self.q_out << self.q_func
       if 'k' in to_write:
         self.k_out << self.k

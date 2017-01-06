@@ -111,7 +111,18 @@ class PlotRect(PlotTools):
         
       return np.array(qs)
       
-    # Get the width integrated sheet discharge at the ith time step
+  
+  # Get the sheet discharge
+  def get_q(self, i):
+    if i < self.num_steps:
+      self.get_h(i)
+      self.get_phi(i)
+      self.get_k(i)
+      
+      return self.q
+      
+      
+  # Get the width integrated sheet discharge at the ith time step
   def get_int_sheet_discharge1(self, i):
     if i < self.num_steps:
       self.get_h(i)

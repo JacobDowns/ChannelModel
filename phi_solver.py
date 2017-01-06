@@ -143,6 +143,6 @@ class PhiSolver(object):
     # Solve for potential
     solve(self.F == 0, self.model.phi, self.model.d_bcs, J = self.J, solver_parameters = self.model.newton_params)
     # Derive values from the new potential 
-    self.model.update_phi()
+    self.model.update_phi()  
 
   

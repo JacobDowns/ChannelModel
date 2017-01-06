@@ -52,6 +52,9 @@ class PlotTools(object):
     # Initial potential 
     self.phi_0 = Function(self.V_cg)
     self.input_file.read(self.phi_0, "phi_0")
+     # Initial conductivity 
+    self.k_0 = Function(self.V_cg)
+    self.input_file.read(self.k_0, "k_0")
     
     # Fields we might wish to plot
     
@@ -104,6 +107,7 @@ class PlotTools(object):
       self.get_pfo(i)
       return assemble(self.pfo * dx) / self.area
      
+     
   # Get pfo at the i-th time step
   def get_N(self, i):
     #if i < self.num_steps:
@@ -111,12 +115,13 @@ class PlotTools(object):
     self.N.vector()[:] = self.phi0.vector().array() - self.phi_0.vector().array()
     return self.N
     
+    
   # Get S at the i-th time step
   def get_S(self, i):
-    #if i < self.num_steps:
-    #self.input_file.read(self.S, "S/vector_" + str(i))
-    self.input_file.read(self.S, "S_0")
-    return self.S
+    if i < self.num_steps:
+      self.input_file.read(self.S, "S/vector_" + str(i))
+      #self.input_file.read(self.S, "S_0")
+      return self.S
         
   
   # Get m at the i-th time step
