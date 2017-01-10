@@ -14,7 +14,7 @@ class HSSolver():
     # Effective pressure
     N = model.N   
     # Sheet height on edges
-    h_cr = model.h_cr
+    h_tr = model.h_tr
     # Effective pressure on edges
     N_cr = model.N_cr
     # Derivative of phi over edges    
