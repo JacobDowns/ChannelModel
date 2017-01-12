@@ -141,7 +141,7 @@ class ChannelModel(Model):
       prm['newton_solver']['relative_tolerance'] = 1e-6
       prm['newton_solver']['absolute_tolerance'] = 1e-6
       prm['newton_solver']['error_on_nonconvergence'] = False
-      prm['newton_solver']['maximum_iterations'] = 20
+      prm['newton_solver']['maximum_iterations'] = 13
       
       self.newton_params = prm
       

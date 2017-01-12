@@ -30,28 +30,28 @@ model = ChannelModel(model_inputs)
 # Seconds per day
 spd = pcs['spd']
 # End time
-T = 650.0 * spd
+T = 4000.0 * spd
 # Time step
-dt = spd / 3.0
+dt = spd / 4.0
 # Iteration count
 i = 0
 
 while model.t < T:  
   if MPI_rank == 0: 
     current_time = model.t / spd
-    print ('%sCurrent time: %s %s' % (fg(1), current_time, attr(0)))
+    print 'Current time: ' + str(current_time)
   
   model.step(dt)
   
-  if i % 1 == 0:
+  if i % 8 == 0:
     model.write_pvds(['pfo', 'h'])
     
-  if i % 1 == 0:
+  if i % 4 == 0:
     model.checkpoint(['h', 'phi', 'S', 'k', 'N'])
   
   if MPI_rank == 0: 
     print
     
   i += 1
-  
+
 model.write_steady_file(out_dir + '/steady')

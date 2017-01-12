@@ -8,18 +8,18 @@ from constants import *
 
 # Directory to write model inputs
 in_dir = "../../inputs/"
-out_dir = "../../inputs/A3/"
+out_dir = "../../inputs/A1/"
 mesh = Mesh(in_dir + "mesh/mesh.xml")
 V_cg = FunctionSpace(mesh, "CG", 1)
 V_cr = FunctionSpace(mesh, "CR", 1)
 
 # Write inputs to a hdf5 file
-f = HDF5File(mesh.mpi_comm(), out_dir + "inputs_A3.hdf5", 'w')
+f = HDF5File(mesh.mpi_comm(), out_dir + "inputs_A1.hdf5", 'w')
 # Write the mesh to a file
 f.write(mesh, "mesh")
 
 # Melt
-m = interpolate(Constant(5.79e-9), V_cg)
+m = interpolate(Constant(7.93e-11), V_cg)
 f.write(m, "m_0")
 
 # Sliding speed

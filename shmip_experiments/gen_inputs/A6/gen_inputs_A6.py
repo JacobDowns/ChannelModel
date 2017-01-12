@@ -45,9 +45,9 @@ class Surface(Expression):
     value[0] = 6.0 * (sqrt(x[0] + 5e3) - sqrt(5e3)) + 1
 
 # Surface
-S = project(Surface(), V_cg)
+S = project(Surface(degree = 1), V_cg)
 # Bed elevation
-B = project(Bed(), V_cg)
+B = project(Bed(degree = 1), V_cg)
 # Ice thickness
 H = project(S - B, V_cg)
 

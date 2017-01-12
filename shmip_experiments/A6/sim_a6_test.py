@@ -11,7 +11,7 @@ from dolfin import MPI, mpi_comm_world
 MPI_rank = MPI.rank(mpi_comm_world())
 
 input_file = '../inputs/A6/inputs_A6.hdf5'
-out_dir = 'results'
+out_dir = 'results_test'
 
 ### Setup the model
 

@@ -49,7 +49,7 @@ class Solver(object):
     k_tr = model.k_tr
     N_tr = model.N_tr
     h_tr = model.h_tr
-    # Local mask corresponding to the local array of a tr function that is 1
+    # Local mask corresponding to 2500the local array of a tr function that is 1
     # on interior edges and 0 on exterior edges
     local_mask = model.local_mask
     # Effective pressure as a function
@@ -155,9 +155,8 @@ class Solver(object):
     # Channel edgle lens
     edge_lens = model.edge_lens
     
-    
-        
-    # Right hand side for the sheet height ODE
+            
+    # Alternative right hand side for the sheet height ODE
     def h_rhs(t, h_n) :
       # Ensure that the sheet height is positive
       h_n[h_n < 0.0] = 0.0
@@ -171,19 +170,9 @@ class Solver(object):
       return (w_n - v_n)
     
 
-    # Right hand side for the channel area ODE
-    def S_rhs1(t, S_n):
-      print t
-      S_n[S_n < 0.0] = 0.0
-      S.vector().set_local(S_n)
-      S.vector().apply("insert")
-      dsdt = assemble((dS_dt *  theta_tr)('+') * dS).array() / edge_lens.array()
-      return dsdt
-    
- 
+
     # Right hand side for the channel area ODE
     def S_rhs(t, S_n):
-      print t
       # Ensure that the channel area is positive
       S_n[S_n < 0.0] = 0.0
       # Get effective pressures, sheet thickness on edges.
@@ -206,11 +195,18 @@ class Solver(object):
       v_c_n = A * S_n * N_n**3
       # Total opening rate
       v_o_n = (Xi_n -Pi_n) / (rho_i * L)
-      # Dissalow negative opening rate where the channel area is 0
-      #v_o_n[v_o_n[S_n == 0.0] < 0.0] = 0.0
       # Calculate rate of channel size change
       dsdt = local_mask * (v_o_n - v_c_n)
-
+      return dsdt
+      
+      
+    # Right hand side for the channel area ODE (for comparison)
+    def S_rhs1(t, S_n):
+      print t
+      S_n[S_n < 0.0] = 0.0
+      S.vector().set_local(S_n)
+      S.vector().apply("insert")
+      dsdt = assemble((dS_dt *  theta_tr)('+') * dS).array() / edge_lens.array()
       return dsdt
       
       
@@ -273,9 +269,6 @@ class Solver(object):
     
     # Update h
     self.model.update_h()
-   
-    #File('S1.pvd') << self.model.S
-    File('S2.xml') << self.model.S
 
     
   # Steps the potential forward by dt
