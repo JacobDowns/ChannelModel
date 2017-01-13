@@ -28,7 +28,9 @@ class ChannelModel(Model):
     # Hydraulic potential    
     self.phi = Function(self.V_cg)
     # Potential at previous time step
-    self.phi_prev = Function(self.V_cg)
+    self.phi_prev1 = Function(self.V_cg)
+    # Potential two time steps ago 
+    self.phi_prev2 = Function(self.V_cg)
     # Sheet height
     self.h = Function(self.V_cg)
     # Channel cross sectional area

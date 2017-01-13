@@ -49,7 +49,7 @@ class Solver(object):
     k_tr = model.k_tr
     N_tr = model.N_tr
     h_tr = model.h_tr
-    # Local mask corresponding to 2500the local array of a tr function that is 1
+    # Local mask corresponding to 2500 the local array of a tr function that is 1
     # on interior edges and 0 on exterior edges
     local_mask = model.local_mask
     # Effective pressure as a function
