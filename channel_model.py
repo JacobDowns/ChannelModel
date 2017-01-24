@@ -28,9 +28,7 @@ class ChannelModel(Model):
     # Hydraulic potential    
     self.phi = Function(self.V_cg)
     # Potential at previous time step
-    self.phi_prev1 = Function(self.V_cg)
-    # Potential two time steps ago 
-    self.phi_prev2 = Function(self.V_cg)
+    self.phi_prev = Function(self.V_cg)
     # Sheet height
     self.h = Function(self.V_cg)
     # Channel cross sectional area
@@ -140,10 +138,10 @@ class ChannelModel(Model):
     else :
       prm = NonlinearVariationalSolver.default_parameters()
       prm['newton_solver']['relaxation_parameter'] = 1.0
-      prm['newton_solver']['relative_tolerance'] = 1e-6
+      prm['newton_solver']['relative_tolerance'] = 1e-9
       prm['newton_solver']['absolute_tolerance'] = 1e-6
       prm['newton_solver']['error_on_nonconvergence'] = False
-      prm['newton_solver']['maximum_iterations'] = 13
+      prm['newton_solver']['maximum_iterations'] = 25
       
       self.newton_params = prm
       
@@ -245,10 +243,19 @@ class ChannelModel(Model):
       self.input_file.read(self.phi, "phi_0")
       # Read in the initial cavity height
       self.input_file.read(self.h, "h_0")      
-      # Load the intitial channel area 
-      self.input_file.read(self.S, "S_0")
       # Use the default constant bump height
       self.h_r.assign(interpolate(Constant(self.pcs['h_r']), self.V_cg))
+
+      ### Load the initial channel cross sectional area function, if there is one
+      has_S0 = False
+      try :
+        self.input_file.attributes("S_0")
+        has_S0 = True
+      except :
+        pass
+      
+      if has_S0:
+        self.input_file.read(self.S, "S_0")      
       
     except Exception as e:
       # If we can't find one of these model inputs we're done 

@@ -52,6 +52,8 @@ class Solver(object):
     # Local mask corresponding to 2500 the local array of a tr function that is 1
     # on interior edges and 0 on exterior edges
     local_mask = model.local_mask
+    # Array of zeros the same langth as the local tr vector
+    zs = np.zeros(len(S.vector().array()))
     # Effective pressure as a function
     N_func = model.N
     
@@ -223,11 +225,12 @@ class Solver(object):
       dsdt = S_rhs(t, S_n)
       
       return np.hstack((dhdt, dsdt))
+      
     
     # ODE solver initial condition
     Y0 = np.hstack((h0, S0))
     # Set up ODE solver
-    ode_solver = ode(rhs).set_integrator('vode', method = 'adams', max_step = 1.0 * 60.0, atol = 1e-6, rtol = 1e-6)
+    ode_solver = ode(rhs).set_integrator('vode', method = 'adams', max_step = 20.0, atol = 1e-6, rtol = 1e-8)
     ode_solver.set_initial_value(Y0, t0)
       
     
@@ -243,6 +246,7 @@ class Solver(object):
     self.dt = dt
     self.ode_solver = ode_solver
     self.h_len = h_len
+    self.zs = zs
     
     
   # Step PDE for phi forward by dt
@@ -264,7 +268,7 @@ class Solver(object):
     Y = np.split(self.ode_solver.y, [self.h_len])
     self.model.h.vector().set_local(Y[0])
     self.model.h.vector().apply("insert")
-    self.model.S.vector().set_local(Y[1])
+    self.model.S.vector().set_local(np.maximum(Y[1], self.zs))
     self.model.S.vector().apply("insert")
     
     # Update h
