@@ -21,11 +21,11 @@ class Solver(object):
     # Hydraulic potential 
     phi = model.phi
     # Potential at previous time step
-    phi_prev = model.phi_prev
+    #phi_prev = model.phi_prev
     # Potential 1 time step ago
-    #phi1 = model.phi1
+    phi1 = model.phi1
     # Potential 2 time steps ago
-    #phi2 = model.phi2
+    phi2 = model.phi2
     # Sheet height
     h = model.h
     # Channel cross sectional area
@@ -49,11 +49,11 @@ class Solver(object):
     # phi and pw edge derivatives
     dphi_ds_tr = model.dphi_ds_tr
     dpw_ds_tr = model.dpw_ds_tr
-    # h, k, and N on edge derivatives
+    # h, k, and N on edges
     k_tr = model.k_tr
     N_tr = model.N_tr
     h_tr = model.h_tr
-    # Local mask corresponding to 2500 the local array of a tr function that is 1
+    # Local mask corresponding to the local array of a tr function that is 1
     # on interior edges and 0 on exterior edges
     local_mask = model.local_mask
     # Array of zeros the same langth as the local tr vector
@@ -126,7 +126,9 @@ class Solver(object):
     # Switch to turn refreezing on or of
     f = conditional(gt(S,0.0),1.0,0.0)
     # Sensible heat change
-    Pi = -Constant(c_t * c_w * rho_w) * (Q + f * Constant(l_c) * q_c) * dpw_ds
+    Pi = Constant(0.0)
+    if model.use_pi:
+      Pi += -Constant(c_t * c_w * rho_w) * (Q + f * Constant(l_c) * q_c) * dpw_ds
     # Channel creep closure rate
     v_c = Constant(A) * S * N**3
     # Another channel source term
@@ -136,13 +138,24 @@ class Solver(object):
   
   
     ### First, the variational form for hydraulic potential PDE
-  
-    F_phi = Constant(e_v / (rho_w * g)) * (phi - phi_prev) * theta_cg * dx
-    F_phi += dt * (-dot(grad(theta_cg), q) + (w - v - m) * theta_cg) * dx 
-    F_phi += dt * (-dot(grad(theta_cg), t) * Q + (w_c - v_c) * theta_cg)('+') * dS
+        
+    U1 = dt * (-dot(grad(theta_cg), q) + (w - v - m)*theta_cg)*dx 
+    U2 = dt * (-dot(grad(theta_cg), t)*Q + (w_c - v_c)*theta_cg)('+')*dS
+    C = Constant(e_v/(rho_w * g))
     
-    d_phi = TrialFunction(V_cg)
-    J_phi = derivative(F_phi, phi, d_phi)
+    ## First order BDF variational form (backward Euler)    
+    F1_phi = C*(phi - phi1)*theta_cg*dx
+    F1_phi += U1 + U2
+    
+    d1_phi = TrialFunction(V_cg)
+    J1_phi = derivative(F1_phi, phi, d1_phi)
+    
+    # Second order BDF variational form
+    F2_phi = C*Constant(3.0)*(phi - Constant(4.0/3.0)*phi1 + Constant(1.0/3.0)*phi2)*theta_cg*dx
+    F2_phi += Constant(2.0)*(U1 + U2)
+    
+    d2_phi = TrialFunction(V_cg)
+    J2_phi = derivative(F2_phi, phi, d2_phi)
 
 
     ### Secondly, set up the sheet height and channel area ODEs
@@ -160,6 +173,8 @@ class Solver(object):
     h_r_n = h_r.vector().array()
     # Channel edgle lens
     edge_lens = model.edge_lens
+    
+    
     
             
     # Alternative right hand side for the sheet height ODE
@@ -196,11 +211,11 @@ class Solver(object):
       # Switch to turn refreezing on or off
       f_n = S_n > 0.0
       # Sensible heat change
-      Pi_n = (-c_t * c_w * rho_w) * (Q_n + f_n * l_c * q_n) * dpw_ds_tr.vector().array()
+      Pi_n = self.model.use_pi * ((-c_t * c_w * rho_w) * (Q_n + f_n * l_c * q_n) * dpw_ds_tr.vector().array())
       # Creep closure
       v_c_n = A * S_n * N_n**3
       # Total opening rate
-      v_o_n = (Xi_n -Pi_n) / (rho_i * L)
+      v_o_n = (Xi_n - Pi_n) / (rho_i * L)
       # Calculate rate of channel size change
       dsdt = local_mask * (v_o_n - v_c_n)
       return dsdt
@@ -225,6 +240,24 @@ class Solver(object):
       h_n = Ys[0]
       S_n = Ys[1]
       
+      
+      ### Compute h rhs
+      
+      # Ensure that the sheet height is positive
+      h_n[h_n < 0.0] = 0.0
+      # Sheet opening term
+      w_n = u_b.vector().array() * (h_r_n - h_n) / l_r
+      # Ensure that the opening term is non-negative
+      w_n[w_n < 0.0] = 0.0
+      # Sheet closure term
+      v_n = A * h_n * N_func.vector().array()**3
+      # Return the time rate of change of the sheet
+       dhdt = w_n - v_n
+       
+       
+       ### Compute S rhs
+      
+      
       dhdt = h_rhs(t, h_n)
       dsdt = S_rhs(t, S_n)
       
@@ -244,8 +277,10 @@ class Solver(object):
     self.h = h
     self.S = S
     self.q = q
-    self.F_phi = F_phi
-    self.J_phi = J_phi
+    self.F1_phi = F1_phi
+    self.J1_phi = J1_phi
+    self.F2_phi = F2_phi
+    self.J2_phi = J2_phi
     self.model = model
     self.dt = dt
     self.ode_solver = ode_solver
@@ -256,10 +291,16 @@ class Solver(object):
   # Step PDE for phi forward by dt
   def step_phi(self, dt):
     self.dt.assign(dt)
-    # Solve for potential
-    solve(self.F_phi == 0, self.phi, self.model.d_bcs, J = self.J_phi, solver_parameters = self.model.newton_params)
+    
+    if self.model.t == 0:
+      # Solve for potential
+      solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
+    else:
+       solve(self.F2_phi == 0, self.phi, self.model.d_bcs, J = self.J2_phi, solver_parameters = self.model.newton_params)
+    
     # Update phi
-    self.model.update_phi()   
+    self.model.update_phi()  
+      
     
     
   # Step combined ode for h and S forward by dt
@@ -284,5 +325,4 @@ class Solver(object):
     # Note : don't change the order of these
     self.step_phi(dt)
     self.step_ode(dt)
-  
   

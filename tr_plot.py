@@ -56,13 +56,13 @@ class TRPlot(object):
     # y coordinate of midpoint
     global_edge_coords_y = vecy.array()
     
-    if self.MPI_rank == 0:
-      print "asf"
-      np.savetxt('xs.txt', global_edge_coords_x)
+    #if self.MPI_rank == 0:
+    #  print "asf"
+    #  np.savetxt('xs.txt', global_edge_coords_x)
 
     
-    print len(global_edge_coords_x)
-    print self.ff_plot.array().size    
+    #print len(global_edge_coords_x)
+    #print self.ff_plot.array().size    
     
     # Create a dictionary that maps a midpoint tuple to an index in the global tr vector
     midpoint_to_tr_index = {}
