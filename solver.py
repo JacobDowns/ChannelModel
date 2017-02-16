@@ -239,7 +239,7 @@ class Solver(object):
         # Sensible heat change
         f_n = np.logical_or(S_n > 0.0, self.q_c_n * self.dpw_ds_n > 0.0) 
         #f_n = 0.0      
-        Pi_n = self.model.use_pi * (-c_t * c_w * rho_w) * (Q_n + f_n*l_c*self.q_c_n) * self.dpw_ds_n 
+        Pi_n = model.use_pi * (-c_t * c_w * rho_w) * (Q_n + f_n*l_c*self.q_c_n) * self.dpw_ds_n 
         # Creep closure
         v_c_n = A * S_n * self.N_cubed_n
         # Total opening rate
@@ -255,7 +255,7 @@ class Solver(object):
     S_ode_solver.setRHSFunction(S_ode.rhs)
     S_ode_solver.setTime(0.0)
     S_ode_solver.setInitialTimeStep(0.0, 1.0)
-    S_ode_solver.setTolerances(atol=5e-9, rtol=1e-13)
+    S_ode_solver.setTolerances(atol=1e-8, rtol=1e-12)
     S_ode_solver.setMaxSteps(10000)
     S_ode_solver.setExactFinalTime(S_ode_solver.ExactFinalTimeOption.MATCHSTEP)
       
@@ -285,6 +285,10 @@ class Solver(object):
     self.f = f
     self.h_ode_solver = h_ode_solver
     self.S_ode_solver = S_ode_solver
+    self.S_ode = S_ode
+    self.h_ode = h_ode
+    # Effective pressure as function
+    self.N_func = model.N
     
     
   # Step PDE for phi forward by dt
@@ -311,10 +315,10 @@ class Solver(object):
     ### S ODE
     
     # Update fields for use in channel ODE
-    self.ode.q_c_n = assemble((self.q_c *  self.theta_tr)('+') * self.dS1).array() / self.edge_lens
-    self.ode.N_cubed_n = assemble((self.N**3 *  self.theta_tr)('+') * self.dS1).array() / self.edge_lens
-    self.ode.dphi_ds_n = assemble((self.dphi_ds * self.theta_tr)('+') * dS).array() / self.edge_lens
-    self.ode.dpw_ds_n = assemble((self.dpw_ds * self.theta_tr)('+') * dS).array() / self.edge_lens
+    self.S_ode.q_c_n = assemble((self.q_c *  self.theta_tr)('+') * self.dS1).array() / self.edge_lens
+    self.S_ode.N_cubed_n = assemble((self.N**3 *  self.theta_tr)('+') * self.dS1).array() / self.edge_lens
+    self.S_ode.dphi_ds_n = assemble((self.dphi_ds * self.theta_tr)('+') * dS).array() / self.edge_lens
+    self.S_ode.dpw_ds_n = assemble((self.dpw_ds * self.theta_tr)('+') * dS).array() / self.edge_lens
     
     # Step S forward
     self.S_ode_solver.setTime(0.0)
@@ -334,8 +338,8 @@ class Solver(object):
     ### h ODE
     
     # Precompute parts of the rhs for h that don't depend on h, but do depend on other unknowns
-    self.ode.v_o_0 = self.u_b.vector().array() / self.model.pcs['l_r']
-    self.ode.v_c_0 = self.model.pcs['A'] * self.N.vector().array()**3
+    self.h_ode.v_o_0 = self.u_b.vector().array() / self.model.pcs['l_r']
+    self.h_ode.v_c_0 = self.model.pcs['A'] * self.N_func.vector().array()**3
     
     # Step h forward
     self.h_ode_solver.setTime(0.0)
