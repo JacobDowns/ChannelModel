@@ -16,7 +16,6 @@ class ChannelModel(Model):
 
     ### Initialize model
 
-
     # Typical CG FEM space
     self.V_cg = FunctionSpace(self.mesh, "CG", 1)
     # Space of trace elements that have constant values on facets

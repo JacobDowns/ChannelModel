@@ -23,7 +23,7 @@ class Solver(object):
     
     # Hydraulic potential 
     phi = model.phi
-    # Potential 1 time step ago
+    # Potential 2 time steps ago
     phi1 = Function(V_cg)
     phi1.assign(phi)
     # Potential 2 time steps ago
@@ -289,6 +289,8 @@ class Solver(object):
     self.h_ode = h_ode
     # Effective pressure as function
     self.N_func = model.N
+    # Number of steps taken so far
+    self.steps = 0
     
     
   # Step PDE for phi forward by dt
