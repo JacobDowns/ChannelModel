@@ -56,19 +56,6 @@ class ChannelModel(Model):
     
     # Load inputs and initialize input and output files    
     self.init_model()
-    
-    
-    ## Derive some additional fields
-    
-    # Potential at 0 pressure
-    self.phi_m = project(pcs['rho_w'] * pcs['g'] * self.B, self.V_cg)
-    # Ice overburden pressure
-    self.p_i = project(pcs['rho_i'] * pcs['g'] * self.H, self.V_cg)
-    # Potential at overburden pressure
-    self.phi_0 = project(self.phi_m + self.p_i, self.V_cg)
-    
-    # Populate all fields derived from phi
-    self.update_phi()
 
 
     ### Setup boundary conditions
@@ -95,8 +82,8 @@ class ChannelModel(Model):
     else :
       prm = NonlinearVariationalSolver.default_parameters()
       prm['newton_solver']['relaxation_parameter'] = 1.0
-      prm['newton_solver']['relative_tolerance'] = 5e-10
-      prm['newton_solver']['absolute_tolerance'] = 1e-6
+      prm['newton_solver']['relative_tolerance'] = 1e-12
+      prm['newton_solver']['absolute_tolerance'] = 1e-9
       prm['newton_solver']['error_on_nonconvergence'] = False
       prm['newton_solver']['maximum_iterations'] = 30
       
@@ -202,12 +189,37 @@ class ChannelModel(Model):
       self.input_file.read(self.u_b, "u_b_0")
       # Hydraulic conductivity
       self.input_file.read(self.k, "k_0")     
-      # Load the initial hydraulic potential
-      self.input_file.read(self.phi, "phi_0")
       # Read in the initial cavity height
       self.input_file.read(self.h, "h_0")      
       # Use the default constant bump height
       self.h_r.assign(interpolate(Constant(self.pcs['h_r']), self.V_cg))
+      
+      ### Derive variables we'll need later and setup boundary conditions
+    
+      # Potential at 0 pressure
+      self.phi_m = project(pcs['rho_w'] * pcs['g'] * self.B, self.V_cg)
+      # Ice overburden pressure
+      self.p_i = project(pcs['rho_i'] * pcs['g'] * self.H, self.V_cg)
+      # Potential at overburden pressure
+      self.phi_0 = project(self.phi_m + self.p_i, self.V_cg)
+
+      
+      ### Load the initial potential function, if there is one
+      has_phi_0 = False
+      try :
+        self.input_file.attributes("phi_0")
+        has_phi_0 = True
+      except :
+        pass
+      
+      if has_phi_0:
+        self.input_file.read(self.phi, "phi_0")
+      else :
+        # No initial potential specified, use overburden potential
+        self.phi.assign(self.phi_0)
+        
+      # Update phi
+      self.update_phi()
 
       ### Load the initial channel cross sectional area function, if there is one
       has_S0 = False
