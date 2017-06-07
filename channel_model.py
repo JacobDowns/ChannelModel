@@ -52,10 +52,27 @@ class ChannelModel(Model):
     self.p_w = Function(self.V_cg)
     # Pressure as a fraction of overburden
     self.pfo = Function(self.V_cg)
+    # Constraints
+    self.phi_min = Function(self.V_cg)
+    self.phi_max = Function(self.V_cg)
   
     
     # Load inputs and initialize input and output files    
     self.init_model()
+    
+    
+    
+    ### Bounds for constrained solver    
+    
+    # If the minimum potential is specified, then use it.
+    self.phi_min.assign(self.phi_m)
+    if 'phi_min' in self.model_inputs:
+      self.phi_min.assign(self.model_inputs['phi_min'])
+    
+    # If the maximum potential is specified, then use it. 
+    self.phi_max.assign(project(self.phi_0, self.V_cg))
+    if 'phi_max' in self.model_inputs:
+      self.phi_max.assign(self.model_inputs['phi_max'])
 
 
     ### Setup boundary conditions
@@ -82,12 +99,33 @@ class ChannelModel(Model):
     else :
       prm = NonlinearVariationalSolver.default_parameters()
       prm['newton_solver']['relaxation_parameter'] = 1.0
-      prm['newton_solver']['relative_tolerance'] = 1e-12
-      prm['newton_solver']['absolute_tolerance'] = 1e-9
+      prm['newton_solver']['relative_tolerance'] = 1e-11
+      prm['newton_solver']['absolute_tolerance'] = 8e-8
       prm['newton_solver']['error_on_nonconvergence'] = False
       prm['newton_solver']['maximum_iterations'] = 30
       
       self.newton_params = prm
+      
+    ### SNES solver aprameters
+      
+    if 'snes_params' in self.model_inputs:
+      self.snes_params = self.model_inputs['snes_params']
+    else :
+      self.snes_params = {"nonlinear_solver": "snes",
+                          "snes_solver": {"linear_solver": "lu",
+                           "maximum_iterations": 100,
+                           "line_search": "basic",
+                           "report": True,
+                           "error_on_nonconvergence": False, 
+                           "relative_tolerance" : 1e-11,
+                           "absolute_tolerance" : 1e-7}}
+                      
+      
+      
+    ### Flag to turn off channels
+    self.use_channels = True
+    if 'use_channels' in self.model_inputs:
+      self.use_channels = self.model_inputs['use_channels']
       
       
     ### FLag to turn off pressure melt term pi
@@ -96,7 +134,7 @@ class ChannelModel(Model):
       self.use_pi = self.model_inputs['use_pi']
       
       
-    ### Create objects that solve the model equations
+    ### Create object that solves the model equations
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
     self.solver = Solver(self)
       
@@ -194,7 +232,7 @@ class ChannelModel(Model):
       # Use the default constant bump height
       self.h_r.assign(interpolate(Constant(self.pcs['h_r']), self.V_cg))
       
-      ### Derive variables we'll need later and setup boundary conditions
+      ### Derive variables we'll need later
     
       # Potential at 0 pressure
       self.phi_m = project(pcs['rho_w'] * pcs['g'] * self.B, self.V_cg)

@@ -42,6 +42,9 @@ class Solver(object):
     phi_m = model.phi_m
     # Potential at overburden pressure
     phi_0 = model.phi_0
+    # Constraints
+    phi_min = model.phi_min
+    phi_max = model.phi_max
     # Bump height
     h_r = model.h_r
     # Conductivity
@@ -144,15 +147,18 @@ class Solver(object):
     ### First, the variational form for hydraulic potential PDE
         
     U1 = dt * (-dot(grad(theta_cg), q) + (w - v - m)*theta_cg)*dx 
-    U2 = dt * (-dot(grad(theta_cg), s)*Q + (w_c - v_c)*theta_cg)('+')*dS
+    U2 = Constant(0.0)*theta_cg*dx
+    if model.use_channels:
+      U2 = dt * (-dot(grad(theta_cg), s)*Q + (w_c - v_c)*theta_cg)('+')*dS
     C = Constant(e_v/(rho_w * g))
-    
-    ## First order BDF variational form (backward Euler)    
+        
+    # First order BDF variational form (backward Euler)    
     F1_phi = C*(phi - phi1)*theta_cg*dx
     F1_phi += U1 + U2
-    
+        
     d1_phi = TrialFunction(V_cg)
     J1_phi = derivative(F1_phi, phi, d1_phi)
+
     
     # Second order BDF variational form
     F2_phi = C*Constant(3.0)*(phi - Constant(4.0/3.0)*phi1 + Constant(1.0/3.0)*phi2)*theta_cg*dx
@@ -160,6 +166,20 @@ class Solver(object):
     
     d2_phi = TrialFunction(V_cg)
     J2_phi = derivative(F2_phi, phi, d2_phi)
+    
+    
+    ### Setup constrained solver
+    
+    phi_problem1 = NonlinearVariationalProblem(F1_phi, phi, model.d_bcs, J1_phi)
+    phi_problem1.set_bounds(phi_min, phi_max)
+    phi_solver1 = NonlinearVariationalSolver(phi_problem1)
+    phi_solver1.parameters.update(model.snes_params)
+    
+    phi_problem2 = NonlinearVariationalProblem(F2_phi, phi, model.d_bcs, J2_phi)
+    phi_problem2.set_bounds(phi_min, phi_max)
+    phi_solver2 = NonlinearVariationalSolver(phi_problem2)
+    phi_solver2.parameters.update(model.snes_params)
+
 
 
     ### Secondly, set up the sheet height and channel area ODEs
@@ -287,22 +307,28 @@ class Solver(object):
     self.S_ode_solver = S_ode_solver
     self.S_ode = S_ode
     self.h_ode = h_ode
+    self.phi_solver1 = phi_solver1
+    self.phi_solver2 = phi_solver2
     # Effective pressure as function
     self.N_func = model.N
-    # Number of steps taken so far
-    self.steps = 0
     
     
   # Step PDE for phi forward by dt
-  def step_phi(self, dt):
+  def step_phi(self, dt, constrain = False):
     # Assign time step
     self.dt.assign(dt)
 
     if self.model.t == 0:
-      # Solve for potential
-      solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
+      if not constrain:
+        # Solve for potential
+        solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
+      else :
+        (i, converged) = self.phi_solver1.solve()
     else :
-      solve(self.F2_phi == 0, self.phi, self.model.d_bcs, J = self.J2_phi, solver_parameters = self.model.newton_params)
+      if not constrain:
+        solve(self.F2_phi == 0, self.phi, self.model.d_bcs, J = self.J2_phi, solver_parameters = self.model.newton_params)
+      else :
+        (i, converged) = self.phi_solver2.solve()
     
     # Update phi1 and phi2
     self.phi2.assign(self.phi1)
@@ -316,25 +342,26 @@ class Solver(object):
     
     ### S ODE
     
-    # Update fields for use in channel ODE
-    self.S_ode.q_c_n = assemble((self.q_c *  self.theta_tr)('+') * self.dS1).array() / self.edge_lens
-    self.S_ode.N_cubed_n = assemble((self.N**3 *  self.theta_tr)('+') * self.dS1).array() / self.edge_lens
-    self.S_ode.dphi_ds_n = assemble((self.dphi_ds * self.theta_tr)('+') * dS).array() / self.edge_lens
-    self.S_ode.dpw_ds_n = assemble((self.dpw_ds * self.theta_tr)('+') * dS).array() / self.edge_lens
-    
-    # Step S forward
-    self.S_ode_solver.setTime(0.0)
-    self.S_ode_solver.setMaxTime(dt)
-    self.S_ode_solver.solve(self.S_v)
-    
-    if self.MPI_rank == 0:
-      print('steps %d (%d rejected)'
-            % (self.S_ode_solver.getStepNumber(), self.S_ode_solver.getStepRejections()))
-            
-    # Make sure it's non-negative
-    self.S.vector().set_local(np.maximum(self.S.vector().array(), self.zs_tr))
-    # Apply changes to vector
-    self.S.vector().apply("insert")
+    if self.model.use_channels:
+      # Update fields for use in channel ODE
+      self.S_ode.q_c_n = assemble((self.q_c *  self.theta_tr)('+') * self.dS1).array() / self.edge_lens
+      self.S_ode.N_cubed_n = assemble((self.N**3 *  self.theta_tr)('+') * self.dS1).array() / self.edge_lens
+      self.S_ode.dphi_ds_n = assemble((self.dphi_ds * self.theta_tr)('+') * dS).array() / self.edge_lens
+      self.S_ode.dpw_ds_n = assemble((self.dpw_ds * self.theta_tr)('+') * dS).array() / self.edge_lens
+      
+      # Step S forward
+      self.S_ode_solver.setTime(0.0)
+      self.S_ode_solver.setMaxTime(dt)
+      self.S_ode_solver.solve(self.S_v)
+      
+      if self.MPI_rank == 0:
+        print('steps %d (%d rejected)'
+              % (self.S_ode_solver.getStepNumber(), self.S_ode_solver.getStepRejections()))
+              
+      # Make sure it's non-negative
+      self.S.vector().set_local(np.maximum(self.S.vector().array(), self.zs_tr))
+      # Apply changes to vector
+      self.S.vector().apply("insert")
 
 
     ### h ODE
