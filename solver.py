@@ -153,9 +153,10 @@ class Solver(object):
     C = Constant(e_v/(rho_w * g))
         
     # First order BDF variational form (backward Euler)    
-    F1_phi = C*(phi - phi1)*theta_cg*dx
-    F1_phi += U1 + U2
-        
+    #F1_phi = C*(phi - phi1)*theta_cg*dx
+    #F1_phi += U1 + U2
+    F1_phi = (-dot(grad(theta_cg), q) + (w - v - m)*theta_cg)*dx 
+    
     d1_phi = TrialFunction(V_cg)
     J1_phi = derivative(F1_phi, phi, d1_phi)
 
@@ -230,8 +231,8 @@ class Solver(object):
     h_ode_solver.setRHSFunction(h_ode.rhs)
     h_ode_solver.setTime(0.0)
     h_ode_solver.setInitialTimeStep(0.0, 1.0)
-    h_ode_solver.setTolerances(atol=5e-9, rtol=1e-13)
-    h_ode_solver.setMaxSteps(10000)
+    ode_solver.setTolerances(atol=1e-9, rtol=1e-12)
+    ode_solver.setMaxSteps(100)
     h_ode_solver.setExactFinalTime(h_ode_solver.ExactFinalTimeOption.MATCHSTEP)
     
         
@@ -318,17 +319,17 @@ class Solver(object):
     # Assign time step
     self.dt.assign(dt)
 
-    if self.model.t == 0:
-      if not constrain:
+    #if self.model.t == 0:
+    #  if not constrain:
         # Solve for potential
-        solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
-      else :
-        (i, converged) = self.phi_solver1.solve()
-    else :
-      if not constrain:
-        solve(self.F2_phi == 0, self.phi, self.model.d_bcs, J = self.J2_phi, solver_parameters = self.model.newton_params)
-      else :
-        (i, converged) = self.phi_solver2.solve()
+    solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
+    #  else :
+    #    (i, converged) = self.phi_solver1.solve()
+    #else :
+    #  if not constrain:
+    #    solve(self.F2_phi == 0, self.phi, self.model.d_bcs, J = self.J2_phi, solver_parameters = self.model.newton_params)
+    #  else :
+    #    (i, converged) = self.phi_solver2.solve()
     
     # Update phi1 and phi2
     self.phi2.assign(self.phi1)
