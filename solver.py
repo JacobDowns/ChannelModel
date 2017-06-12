@@ -320,17 +320,17 @@ class Solver(object):
     # Assign time step
     self.dt.assign(dt)
 
-    #if self.model.t == 0:
-    #  if not constrain:
+    if self.model.t == 0:
+      if not constrain:
         # Solve for potential
-    solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
-    #  else :
-    #    (i, converged) = self.phi_solver1.solve()
-    #else :
-    #  if not constrain:
-    #    solve(self.F2_phi == 0, self.phi, self.model.d_bcs, J = self.J2_phi, solver_parameters = self.model.newton_params)
-    #  else :
-    #    (i, converged) = self.phi_solver2.solve()
+        solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
+      else :
+        (i, converged) = self.phi_solver1.solve()
+    else :
+      if not constrain:
+        solve(self.F2_phi == 0, self.phi, self.model.d_bcs, J = self.J2_phi, solver_parameters = self.model.newton_params)
+      else :
+        (i, converged) = self.phi_solver2.solve()
     
     # Update phi1 and phi2
     self.phi2.assign(self.phi1)
