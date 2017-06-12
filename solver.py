@@ -153,9 +153,9 @@ class Solver(object):
     C = Constant(e_v/(rho_w * g))
         
     # First order BDF variational form (backward Euler)    
-    #F1_phi = C*(phi - phi1)*theta_cg*dx
-    #F1_phi += U1 + U2
-    F1_phi = (-dot(grad(theta_cg), q) + (w - v - m)*theta_cg)*dx 
+    F1_phi = C*(phi - phi1)*theta_cg*dx
+    F1_phi += U1 + U2
+    #F1_phi = (-dot(grad(theta_cg), q) + (w - v - m)*theta_cg)*dx 
     
     d1_phi = TrialFunction(V_cg)
     J1_phi = derivative(F1_phi, phi, d1_phi)
@@ -223,6 +223,7 @@ class Solver(object):
         v_c_n = self.v_c_0 * h_n
         # Set right hand side
         dhdt.setArray(v_o_n - v_c_n) 
+        
         
     # Create PETSc time stepping solver for h
     h_ode = H_ODE()
