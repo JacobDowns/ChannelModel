@@ -231,8 +231,8 @@ class Solver(object):
     h_ode_solver.setRHSFunction(h_ode.rhs)
     h_ode_solver.setTime(0.0)
     h_ode_solver.setInitialTimeStep(0.0, 1.0)
-    ode_solver.setTolerances(atol=1e-9, rtol=1e-12)
-    ode_solver.setMaxSteps(100)
+    h_ode_solver.setTolerances(atol=1e-9, rtol=1e-12)
+    h_ode_solver.setMaxSteps(100)
     h_ode_solver.setExactFinalTime(h_ode_solver.ExactFinalTimeOption.MATCHSTEP)
     
         
