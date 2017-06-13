@@ -100,7 +100,7 @@ class ChannelModel(Model):
       prm = NonlinearVariationalSolver.default_parameters()
       prm['newton_solver']['relaxation_parameter'] = 1.0
       prm['newton_solver']['relative_tolerance'] = 1e-11
-      prm['newton_solver']['absolute_tolerance'] = 1e-7
+      prm['newton_solver']['absolute_tolerance'] = 2e-7
       prm['newton_solver']['error_on_nonconvergence'] = False
       prm['newton_solver']['maximum_iterations'] = 30
       
