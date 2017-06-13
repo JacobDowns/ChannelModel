@@ -91,7 +91,7 @@ class Solver(object):
     alpha = model.pcs['alpha']
     delta = model.pcs['delta']
     # Regularization parameter
-    phi_reg = Constant(1e-20)
+    phi_reg = Constant(1e-18)
 
   
     ### Define variational forms for each unknown phi, h, and S
@@ -145,17 +145,23 @@ class Solver(object):
   
   
     ### First, the variational form for hydraulic potential PDE
-        
+  
+    self.storage = False
+    if not e_v == 0:
+      self.storage = True
+    
     U1 = dt * (-dot(grad(theta_cg), q) + (w - v - m)*theta_cg)*dx 
+    
     U2 = Constant(0.0)*theta_cg*dx
     if model.use_channels:
       U2 = dt * (-dot(grad(theta_cg), s)*Q + (w_c - v_c)*theta_cg)('+')*dS
+    
     C = Constant(e_v/(rho_w * g))
         
     # First order BDF variational form (backward Euler)    
     F1_phi = C*(phi - phi1)*theta_cg*dx
     F1_phi += U1 + U2
-    #F1_phi = (-dot(grad(theta_cg), q) + (w - v - m)*theta_cg)*dx 
+    F1_phi = U1 + U2
     
     d1_phi = TrialFunction(V_cg)
     J1_phi = derivative(F1_phi, phi, d1_phi)
@@ -163,7 +169,7 @@ class Solver(object):
     
     # Second order BDF variational form
     F2_phi = C*Constant(3.0)*(phi - Constant(4.0/3.0)*phi1 + Constant(1.0/3.0)*phi2)*theta_cg*dx
-    F2_phi += Constant(2.0)*(U1 + U2)
+    F2_phi = Constant(2.0)*(U1 + U2)
     
     d2_phi = TrialFunction(V_cg)
     J2_phi = derivative(F2_phi, phi, d2_phi)
@@ -317,10 +323,12 @@ class Solver(object):
     
   # Step PDE for phi forward by dt
   def step_phi(self, dt, constrain = False):
-    # Assign time step
-    self.dt.assign(dt)
+    # Assign time step if storage is enabled. Otherwise leave this constant 1
+    # to improve convergence
+    if self.storage :
+      self.dt.assign(dt)
 
-    if self.model.t == 0:
+    if self.model.t == 0 or not self.storage:    
       if not constrain:
         # Solve for potential
         solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
