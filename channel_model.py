@@ -340,8 +340,9 @@ class ChannelModel(Model):
     # Always checkpoint h and S
     self.output_file.write(self.h, "h", self.t)
     self.output_file.write(self.S, "S", self.t)
-    self.output_file.write(self.phi, "phi", self.t)
     
+    if self.use_channels or 'S' in to_write:
+      self.output_file.write(self.phi, "phi", self.t)
     if 'N' in to_write:
       self.output_file.write(self.phi, "N", self.t)
     if 'u_b' in to_write:

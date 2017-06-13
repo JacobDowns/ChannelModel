@@ -142,6 +142,8 @@ class Solver(object):
     w_c = ((Xi - Pi) / Constant(L)) * Constant((1. / rho_i) - (1. / rho_w))
     # Define a time step constant
     dt = Constant(1.0)
+    # Storage constant
+    C = Constant(e_v/(rho_w * g))
   
   
     ### First, the variational form for hydraulic potential PDE
@@ -151,17 +153,14 @@ class Solver(object):
       self.storage = True
     
     U1 = dt * (-dot(grad(theta_cg), q) + (w - v - m)*theta_cg)*dx 
-    
     U2 = Constant(0.0)*theta_cg*dx
     if model.use_channels:
       U2 = dt * (-dot(grad(theta_cg), s)*Q + (w_c - v_c)*theta_cg)('+')*dS
     
-    C = Constant(e_v/(rho_w * g))
-        
+
     # First order BDF variational form (backward Euler)    
     F1_phi = C*(phi - phi1)*theta_cg*dx
     F1_phi += U1 + U2
-    F1_phi = U1 + U2
     
     d1_phi = TrialFunction(V_cg)
     J1_phi = derivative(F1_phi, phi, d1_phi)
