@@ -100,7 +100,7 @@ class ChannelModel(Model):
       prm = NonlinearVariationalSolver.default_parameters()
       prm['newton_solver']['relaxation_parameter'] = 1.0
       prm['newton_solver']['relative_tolerance'] = 1e-11
-      prm['newton_solver']['absolute_tolerance'] = 2e-7
+      prm['newton_solver']['absolute_tolerance'] = 8e-8
       prm['newton_solver']['error_on_nonconvergence'] = False
       prm['newton_solver']['maximum_iterations'] = 30
       
@@ -375,6 +375,11 @@ class ChannelModel(Model):
   # Sets the melt rate function
   def set_m(self, new_m):
     self.m.assign(new_m)
+    
+    
+  # Sets sheet height function
+  def set_h(self, new_h):
+    self.h.assign(project(new_h,  self.V_cg))
     
   
   # Sets the sliding speed

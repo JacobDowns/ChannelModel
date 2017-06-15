@@ -389,11 +389,10 @@ class Solver(object):
             % (self.h_ode_solver.getStepNumber(), self.h_ode_solver.getStepRejections()))
             
     # Make sure it's non-negative
-    self.h.vector().set_local(np.maximum(self.h.vector().array(), self.zs_cg))
+    self.h.vector().set_local(np.maximum(self.h_v.getArray(), self.zs_cg))
     # Apply changes to vector
     self.h.vector().apply("insert")
     
-
     
   # Steps the potential forward by dt
   def step(self, dt):
