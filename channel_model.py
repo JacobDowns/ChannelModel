@@ -55,6 +55,8 @@ class ChannelModel(Model):
     # Constraints
     self.phi_min = Function(self.V_cg)
     self.phi_max = Function(self.V_cg)
+    # Storage thickness
+    self.h_e = Function(self.V_cg)
   
     
     # Load inputs and initialize input and output files    
@@ -118,7 +120,7 @@ class ChannelModel(Model):
                            "report": True,
                            "error_on_nonconvergence": False, 
                            "relative_tolerance" : 1e-11,
-                           "absolute_tolerance" : 2e-7}}
+                           "absolute_tolerance" : 1e-7}}
                       
       
       
@@ -150,6 +152,7 @@ class ChannelModel(Model):
     self.u_b_out = File(self.out_dir + "u_b.pvd")
     self.k_out = File(self.out_dir + "k.pvd")
     self.q_out = File(self.out_dir + "q.pvd")
+    self.h_e_out = File(self.out_dir + "h_e.pvd")
     
     # Facet functions for plotting CR functions in Paraview    
     self.ff_out_S = FacetFunctionDouble(self.mesh) 
@@ -291,6 +294,8 @@ class ChannelModel(Model):
 
     # Update pressure as fraction of overburden 
     self.update_pfo()
+    # Update storage
+    self.update_h_e()
     
   
   # Update the pressure as a fraction of overburden to reflect the current 
@@ -299,6 +304,14 @@ class ChannelModel(Model):
     self.pfo.vector().set_local(self.p_w.vector().array() / self.p_i.vector().array())
     self.pfo.vector().apply("insert")
     
+    
+  # Update water storage to reflect current pressure
+  def update_h_e(self):
+    e_v = self.pcs['e_v']
+    rho_w = self.pcs['rho_w']
+    g = self.pcs['g']
+    self.h_e.vector().set_local((e_v / (rho_w * g)) * self.p_w.vector().array())
+    self.h_e.vector().apply("insert")
   
   # Updates functions derived from phi
   def update_phi(self):
@@ -331,6 +344,8 @@ class ChannelModel(Model):
         self.q_out << project(sqrt(dot(self.solver.q, self.solver.q)), self.V_cg)
       if 'k' in to_write:
         self.k_out << self.k
+      if 'h_e' in to_write:
+        self.h_e_out << self.h_e
       
 
   # Write checkpoint files to an hdf5 file
@@ -368,6 +383,8 @@ class ChannelModel(Model):
       self.output_file.write(self.solver.get_dphi_ds_tr(), "dphi_ds", self.t)
     if 'q_c' in to_write:
       self.output_file.write(self.solver.get_q_c_tr(), "q_c", self.t)
+    if 'h_e' in to_write:
+      self.output_file.write(self.h_e, "h_e", self.t)
       
     self.output_file.flush()
     

@@ -324,6 +324,7 @@ class Solver(object):
   def step_phi(self, dt, constrain = False):
     # Assign time step if storage is enabled. Otherwise leave this constant 1
     # to improve convergence
+  
     if self.storage :
       self.dt.assign(dt)
 
