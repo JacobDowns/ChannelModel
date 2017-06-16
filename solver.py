@@ -145,7 +145,6 @@ class Solver(object):
     # Storage constant
     C = Constant(e_v/(rho_w * g))
   
-  
     ### First, the variational form for hydraulic potential PDE
   
     self.storage = False
@@ -168,7 +167,7 @@ class Solver(object):
     
     # Second order BDF variational form
     F2_phi = C*Constant(3.0)*(phi - Constant(4.0/3.0)*phi1 + Constant(1.0/3.0)*phi2)*theta_cg*dx
-    F2_phi = Constant(2.0)*(U1 + U2)
+    F2_phi += Constant(2.0)*(U1 + U2)
     
     d2_phi = TrialFunction(V_cg)
     J2_phi = derivative(F2_phi, phi, d2_phi)
@@ -238,7 +237,7 @@ class Solver(object):
     h_ode_solver.setTime(0.0)
     h_ode_solver.setInitialTimeStep(0.0, 1.0)
     h_ode_solver.setTolerances(atol=1e-9, rtol=1e-12)
-    h_ode_solver.setMaxSteps(100)
+    h_ode_solver.setMaxSteps(200)
     h_ode_solver.setExactFinalTime(h_ode_solver.ExactFinalTimeOption.MATCHSTEP)
     
         
@@ -282,7 +281,7 @@ class Solver(object):
     S_ode_solver.setRHSFunction(S_ode.rhs)
     S_ode_solver.setTime(0.0)
     S_ode_solver.setInitialTimeStep(0.0, 1.0)
-    S_ode_solver.setTolerances(atol=1e-8, rtol=1e-12)
+    S_ode_solver.setTolerances(atol=1e-9, rtol=1e-12)
     S_ode_solver.setMaxSteps(10000)
     S_ode_solver.setExactFinalTime(S_ode_solver.ExactFinalTimeOption.MATCHSTEP)
       
