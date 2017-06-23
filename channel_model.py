@@ -120,7 +120,7 @@ class ChannelModel(Model):
                            "report": True,
                            "error_on_nonconvergence": False, 
                            "relative_tolerance" : 1e-11,
-                           "absolute_tolerance" : 1e-7}}
+                           "absolute_tolerance" : 2e-7}}
                       
       
       
@@ -159,9 +159,9 @@ class ChannelModel(Model):
     
     
   # Steps phi and h forward by dt
-  def step(self, dt):
+  def step(self, dt, constrain = False):
     # Update model time
-    self.solver.step(dt)
+    self.solver.step(dt, constrain)
     self.t += dt
     
   

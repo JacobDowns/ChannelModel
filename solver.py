@@ -395,9 +395,9 @@ class Solver(object):
     
     
   # Steps the potential forward by dt
-  def step(self, dt):
+  def step(self, dt, constrain = False):
     # Note : don't change the order of these
-    self.step_phi(dt)
+    self.step_phi(dt, constrain)
     self.step_ode(dt)
     
     
