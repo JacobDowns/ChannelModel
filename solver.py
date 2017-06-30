@@ -91,7 +91,7 @@ class Solver(object):
     alpha = model.pcs['alpha']
     delta = model.pcs['delta']
     # Regularization parameter
-    phi_reg = Constant(1e-18)
+    phi_reg = Constant(1e-16)
 
   
     ### Define variational forms for each unknown phi, h, and S
