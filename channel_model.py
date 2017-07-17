@@ -6,6 +6,7 @@ import sys as sys
 
 # This is necessary or else assembly of facet integrals will not work in parallel!
 parameters['ghost_mode'] = 'shared_facet'
+parameters['form_compiler']['cpp_optimize'] = True
 
 """ Wrapper class for Glads."""
 
