@@ -327,7 +327,7 @@ class Solver(object):
     if self.storage :
       self.dt.assign(dt)
 
-    if self.model.t == 0 or not self.storage:    
+    if True : #self.model.t == 0 or not self.storage:    
       if not constrain:
         # Solve for potential
         solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
