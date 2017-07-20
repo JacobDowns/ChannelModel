@@ -281,7 +281,7 @@ class Solver(object):
     S_ode_solver.setRHSFunction(S_ode.rhs)
     S_ode_solver.setTime(0.0)
     S_ode_solver.setInitialTimeStep(0.0, 1.0)
-    S_ode_solver.setTolerances(atol=1e-9, rtol=1e-12)
+    S_ode_solver.setTolerances(atol=8e-10, rtol=1e-12)
     S_ode_solver.setMaxSteps(10000)
     S_ode_solver.setExactFinalTime(S_ode_solver.ExactFinalTimeOption.MATCHSTEP)
       
@@ -327,7 +327,7 @@ class Solver(object):
     if self.storage :
       self.dt.assign(dt)
 
-    if self.model.t == 0 or not self.storage:    
+    if True : #self.model.t == 0 or not self.storage:    
       if not constrain:
         # Solve for potential
         solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
