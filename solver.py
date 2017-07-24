@@ -107,9 +107,9 @@ class Solver(object):
     # Crank Nicholson phi_mid
     phi_mid = Constant(0.5)*phi + Constant(0.5)*phi1
     # Expression for effective pressure
-    N = phi_0 - phi
+    N = phi_0 - phi_mid
     # Flux vector
-    q = -k*(h**alpha)*(dot(grad(phi), grad(phi)) + phi_reg)**(delta / 2.0) * grad(phi)
+    q = -k*(h**alpha)*(dot(grad(phi_mid), grad(phi_mid)) + phi_reg)**(delta / 2.0) * grad(phi_mid)
     # Opening term 
     w = conditional(gt(h_r - h, 0.0), u_b*(h_r - h)/Constant(l_r), 0.0) 
     # Closing term
@@ -118,21 +118,19 @@ class Solver(object):
     n = FacetNormal(model.mesh)
     s = as_vector([n[1], -n[0]])
     # Derivative of phi along channel 
-    dphi_ds = dot(grad(phi), s)
+    dphi_ds = dot(grad(phi_mid), s)
     # Discharge through channels
     Q = -Constant(k_c) * S**alpha * abs(dphi_ds + phi_reg)**delta * dphi_ds
     # Approximate discharge of sheet in direction of channel
     q_c = -k * (h**alpha) * abs(dphi_ds + phi_reg)**delta * dphi_ds
-    
-    
     # Energy dissipation 
     Xi = abs(Q * dphi_ds) + abs(Constant(l_c) * q_c * dphi_ds)
     # Derivative of water pressure along channels
-    dpw_ds = dot(grad(phi - phi_m), s)
+    dpw_ds = dot(grad(phi_mid - phi_m), s)
     # Switch to turn refreezing on or of
     f1 = conditional(gt(S,0.0),1.0,0.0)
     f2 = conditional(gt(q_c * dpw_ds, 0.0), 1.0, 0.0)
-    f = (f1 + f2) / (f1 + f2 + Constant(1e-20))      
+    f = (f1 + f2) / (f1 + f2 + Constant(1e-16))      
     # Sensible heat change
     Pi = Constant(0.0)
     if model.use_pi:
@@ -153,29 +151,27 @@ class Solver(object):
     if not e_v == 0:
       self.storage = True
     
-    U1 = dt * (-dot(grad(theta_cg), q) + (w - v - m)*theta_cg)*dx 
-    U2 = Constant(0.0)*theta_cg*dx
-    if model.use_channels:
-      U2 = dt * (-dot(grad(theta_cg), s)*Q + (w_c - v_c)*theta_cg)('+')*dS
+    # Sheet and channel components of variational form
+    U1 = (-dot(grad(theta_cg), q) + (w - v - m)*theta_cg)*dx 
+    U2 = dt * (-dot(grad(theta_cg), s)*Q + (w_c - v_c)*theta_cg)('+')*dS
     
 
-    # First order BDF variational form (backward Euler)    
-    F1_phi = C*(phi - phi1)*theta_cg*dx
-    F1_phi += U1 + U2
+    # First order BDF variational form (backward Euler)
+    if self.storage :
+      F1_phi = (C*(phi - phi1)/dt)*theta_cg*dx
+      F1_phi += U1
+      if model.use_channels: 
+        F1_phi += U2
+    else :
+      F1_phi = U1 
+      if model.use_channels:
+        F1_phi += U2
+      
+
     
     d1_phi = TrialFunction(V_cg)
     J1_phi = derivative(F1_phi, phi, d1_phi)
 
-
- 
-    
-    # Second order BDF variational form
-    F2_phi = C*Constant(3.0)*(phi - Constant(4.0/3.0)*phi1 + Constant(1.0/3.0)*phi2)*theta_cg*dx
-    F2_phi += Constant(2.0)*(U1 + U2)
-    
-    d2_phi = TrialFunction(V_cg)
-    J2_phi = derivative(F2_phi, phi, d2_phi)
-    
     
     ### Setup constrained solver
     
@@ -183,11 +179,6 @@ class Solver(object):
     phi_problem1.set_bounds(phi_min, phi_max)
     phi_solver1 = NonlinearVariationalSolver(phi_problem1)
     phi_solver1.parameters.update(model.snes_params)
-    
-    phi_problem2 = NonlinearVariationalProblem(F2_phi, phi, model.d_bcs, J2_phi)
-    phi_problem2.set_bounds(phi_min, phi_max)
-    phi_solver2 = NonlinearVariationalSolver(phi_problem2)
-    phi_solver2.parameters.update(model.snes_params)
 
 
 
