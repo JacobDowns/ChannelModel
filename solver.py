@@ -105,7 +105,8 @@ class Solver(object):
     ## Expressions used in the variational forms
     
     # Crank Nicholson phi_mid
-    phi_mid = Constant(0.5)*phi + Constant(0.5)*phi1
+    theta = 1.0
+    phi_mid = Constant(theta)*phi + Constant(1. - theta)*phi1
     # Expression for effective pressure
     N = phi_0 - phi_mid
     # Flux vector
@@ -154,7 +155,6 @@ class Solver(object):
     # Sheet and channel components of variational form
     U1 = (-dot(grad(theta_cg), q) + (w - v - m)*theta_cg)*dx 
     U2 = dt * (-dot(grad(theta_cg), s)*Q + (w_c - v_c)*theta_cg)('+')*dS
-    
 
     # First order BDF variational form (backward Euler)
     if self.storage :
@@ -294,8 +294,6 @@ class Solver(object):
     self.dphi_ds = dphi_ds
     self.F1_phi = F1_phi
     self.J1_phi = J1_phi
-    self.F2_phi = F2_phi
-    self.J2_phi = J2_phi
     self.dt = dt
     self.q_c = q_c
     self.theta_tr = theta_tr
@@ -309,7 +307,6 @@ class Solver(object):
     self.S_ode = S_ode
     self.h_ode = h_ode
     self.phi_solver1 = phi_solver1
-    self.phi_solver2 = phi_solver2
     # Effective pressure as function
     self.N_func = model.N
     
@@ -319,23 +316,13 @@ class Solver(object):
     # Assign time step if storage is enabled. Otherwise leave this constant 1
     # to improve convergence
   
-    if self.storage :
-      self.dt.assign(dt)
-
-    if self.model.t == 0 or not self.storage:    
-      if not constrain:
-        # Solve for potential
-        solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
-      else :
-        (i, converged) = self.phi_solver1.solve()
+    if not constrain:
+      # Solve for potential
+      solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
     else :
-      if not constrain:
-        solve(self.F2_phi == 0, self.phi, self.model.d_bcs, J = self.J2_phi, solver_parameters = self.model.newton_params)
-      else :
-        (i, converged) = self.phi_solver2.solve()
+      (i, converged) = self.phi_solver1.solve()
     
-    # Update phi1 and phi2
-    self.phi2.assign(self.phi1)
+    # Update phi1
     self.phi1.assign(self.phi)
     # Update fields derived from phi
     self.model.update_phi()  
