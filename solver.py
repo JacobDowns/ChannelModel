@@ -104,6 +104,8 @@ class Solver(object):
     
     ## Expressions used in the variational forms
     
+    # Crank Nicholson phi_mid
+    phi_mid = Constant(0.5)*phi + Constant(0.5)*phi1
     # Expression for effective pressure
     N = phi_0 - phi
     # Flux vector
@@ -131,7 +133,6 @@ class Solver(object):
     f1 = conditional(gt(S,0.0),1.0,0.0)
     f2 = conditional(gt(q_c * dpw_ds, 0.0), 1.0, 0.0)
     f = (f1 + f2) / (f1 + f2 + Constant(1e-20))      
-    #f = Constant(0.0)
     # Sensible heat change
     Pi = Constant(0.0)
     if model.use_pi:
@@ -144,6 +145,7 @@ class Solver(object):
     dt = Constant(1.0)
     # Storage constant
     C = Constant(e_v/(rho_w * g))
+
   
     ### First, the variational form for hydraulic potential PDE
   
@@ -164,6 +166,8 @@ class Solver(object):
     d1_phi = TrialFunction(V_cg)
     J1_phi = derivative(F1_phi, phi, d1_phi)
 
+
+ 
     
     # Second order BDF variational form
     F2_phi = C*Constant(3.0)*(phi - Constant(4.0/3.0)*phi1 + Constant(1.0/3.0)*phi2)*theta_cg*dx
@@ -281,7 +285,7 @@ class Solver(object):
     S_ode_solver.setRHSFunction(S_ode.rhs)
     S_ode_solver.setTime(0.0)
     S_ode_solver.setInitialTimeStep(0.0, 1.0)
-    S_ode_solver.setTolerances(atol=8e-10, rtol=1e-12)
+    S_ode_solver.setTolerances(atol=1e-10, rtol=1e-13)
     S_ode_solver.setMaxSteps(10000)
     S_ode_solver.setExactFinalTime(S_ode_solver.ExactFinalTimeOption.MATCHSTEP)
       
@@ -327,7 +331,7 @@ class Solver(object):
     if self.storage :
       self.dt.assign(dt)
 
-    if True : #self.model.t == 0 or not self.storage:    
+    if self.model.t == 0 or not self.storage:    
       if not constrain:
         # Solve for potential
         solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)

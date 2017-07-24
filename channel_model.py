@@ -121,7 +121,7 @@ class ChannelModel(Model):
                            "report": True,
                            "error_on_nonconvergence": False, 
                            "relative_tolerance" : 1e-11,
-                           "absolute_tolerance" : 2e-7}}
+                           "absolute_tolerance" : 1e-7}}
                       
       
       
