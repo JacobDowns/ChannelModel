@@ -346,9 +346,6 @@ class Solver(object):
     # Update fields derived from phi
     self.model.update_phi()  
     
-  
-  def step_
-    
     
   # Step odes for h and S forward by dt
   def step_ode(self, dt):
