@@ -26,8 +26,6 @@ class Solver(object):
     # Potential 2 time steps ago
     phi1 = Function(V_cg)
     phi1.assign(phi)
-    # Potential 2 time steps ago
-    phi2 = Function(V_cg)
     # Sheet height
     h = model.h
     # Channel cross sectional area
@@ -61,6 +59,8 @@ class Solver(object):
     self.q_c_tr = Function(V_tr)
     # tr version of f for output
     self.f_tr = Function(V_tr)
+    # Alternative guess for newton solver
+    self.zero_guess = Function(V_cg)
     
     
     ### Define constants 
@@ -104,9 +104,19 @@ class Solver(object):
     
     ## Expressions used in the variational forms
     
+    self.storage = False
+    if not e_v == 0:
+      self.storage = True
+    
+    if not self.storage:
+      theta = 1.0
+    else :
+      theta = 0.5
+
     # Crank Nicholson phi_mid
     theta = 1.0
-    phi_mid = Constant(theta)*phi + Constant(1. - theta)*phi1
+    phi_mid = Constant(theta)*phi + Constant(1. - theta)*phi1                
+      
     # Expression for effective pressure
     N = phi_0 - phi_mid
     # Flux vector
@@ -148,15 +158,10 @@ class Solver(object):
   
     ### First, the variational form for hydraulic potential PDE
   
-    self.storage = False
-    if not e_v == 0:
-      self.storage = True
-    
     # Sheet and channel components of variational form
     U1 = (-dot(grad(theta_cg), q) + (w - v - m)*theta_cg)*dx 
-    U2 = dt * (-dot(grad(theta_cg), s)*Q + (w_c - v_c)*theta_cg)('+')*dS
+    U2 = (-dot(grad(theta_cg), s)*Q + (w_c - v_c)*theta_cg)('+')*dS
 
-    # First order BDF variational form (backward Euler)
     if self.storage :
       F1_phi = (C*(phi - phi1)/dt)*theta_cg*dx
       F1_phi += U1
@@ -166,9 +171,7 @@ class Solver(object):
       F1_phi = U1 
       if model.use_channels:
         F1_phi += U2
-      
-
-    
+          
     d1_phi = TrialFunction(V_cg)
     J1_phi = derivative(F1_phi, phi, d1_phi)
 
@@ -276,7 +279,7 @@ class Solver(object):
     S_ode_solver.setRHSFunction(S_ode.rhs)
     S_ode_solver.setTime(0.0)
     S_ode_solver.setInitialTimeStep(0.0, 1.0)
-    S_ode_solver.setTolerances(atol=1e-10, rtol=1e-13)
+    S_ode_solver.setTolerances(atol=5e-10, rtol=1e-12)
     S_ode_solver.setMaxSteps(10000)
     S_ode_solver.setExactFinalTime(S_ode_solver.ExactFinalTimeOption.MATCHSTEP)
       
@@ -286,7 +289,6 @@ class Solver(object):
     self.model = model
     self.phi = phi
     self.phi1 = phi1
-    self.phi2 = phi2
     self.h = h
     self.S = S
     self.q = q
@@ -313,14 +315,29 @@ class Solver(object):
     
   # Step PDE for phi forward by dt
   def step_phi(self, dt, constrain = False):
-    # Assign time step if storage is enabled. Otherwise leave this constant 1
-    # to improve convergence
+    # Assign time step 
+    self.dt.assign(dt)
   
-    if not constrain:
-      # Solve for potential
-      solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
-    else :
-      (i, converged) = self.phi_solver1.solve()
+    try :
+      if not constrain :
+        # Solve for potential
+        solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
+      else :
+        (i, converged) = self.phi_solver1.solve()
+    except :
+      # Use a guess of zero and try the solve again
+      self.phi.assign(self.zero_guess)
+      
+      if not constrain :
+        self.model.newton_params['newton_solver']['error_on_nonconvergence'] = False
+        solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
+        self.model.newton_params['newton_solver']['error_on_nonconvergence'] = True
+      else :
+        self.model.newton_params['snes_solver']['error_on_nonconvergence'] = False
+        (i, converged) = self.phi_solver1.solve()
+        self.model.newton_params['snes_solver']['error_on_nonconvergence'] = True
+      
+      
     
     # Update phi1
     self.phi1.assign(self.phi)
