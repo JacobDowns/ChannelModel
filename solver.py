@@ -61,6 +61,7 @@ class Solver(object):
     self.f_tr = Function(V_tr)
     # Alternative guess for newton solver
     self.zero_guess = Function(V_cg)
+    self.zero_guess.assign(phi_0)
     
     
     ### Define constants 
