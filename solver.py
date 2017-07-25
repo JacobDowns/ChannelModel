@@ -318,6 +318,7 @@ class Solver(object):
   def step_phi(self, dt, constrain = False):
     # Assign time step 
     self.dt.assign(dt)
+    success = False
   
     try :
       if not constrain :
@@ -325,18 +326,18 @@ class Solver(object):
         solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
       else :
         (i, converged) = self.phi_solver1.solve()
+        
     except :
-      # Use a guess of zero and try the solve again
-      self.phi.assign(self.zero_guess)
-      
+      # Take two half steps
       if not constrain :
+        self.model.newton_params['newton_solver']['error_on_nonconvergence'] = False
         self.model.newton_params['newton_solver']['relaxation_parameter'] = 0.9
         solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
         self.model.newton_params['newton_solver']['relaxation_parameter'] = 1.0
       else :
-        self.model.newton_params['snes_solver']['error_on_nonconvergence'] = False
+        self.model.snes_params['snes_solver']['error_on_nonconvergence'] = False
         (i, converged) = self.phi_solver1.solve()
-        self.model.newton_params['snes_solver']['error_on_nonconvergence'] = True
+        self.model.snes_params['snes_solver']['error_on_nonconvergence'] = True
       
       
     
@@ -344,6 +345,9 @@ class Solver(object):
     self.phi1.assign(self.phi)
     # Update fields derived from phi
     self.model.update_phi()  
+    
+  
+  def step_
     
     
   # Step odes for h and S forward by dt
