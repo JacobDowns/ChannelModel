@@ -330,12 +330,12 @@ class Solver(object):
       self.phi.assign(self.zero_guess)
       
       if not constrain :
-        self.model.newton_params['newton_solver']['error_on_nonconvergence'] = False
+        self.model.newton_params['newton_solver']['relaxation_parameter'] = 0.9
         solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
-        self.model.newton_params['newton_solver']['error_on_nonconvergence'] = True
-      else :
+        self.model.newton_params['newton_solver']['relaxation_parameter'] = 1.0                
+     else :
         self.model.newton_params['snes_solver']['error_on_nonconvergence'] = False
-        (i, converged) = self.phi_solver1.solve()
+z       (i, converged) = self.phi_solver1.solve()
         self.model.newton_params['snes_solver']['error_on_nonconvergence'] = True
       
       
