@@ -335,7 +335,7 @@ class Solver(object):
         self.model.newton_params['newton_solver']['relaxation_parameter'] = 1.0                
      else :
         self.model.newton_params['snes_solver']['error_on_nonconvergence'] = False
-z       (i, converged) = self.phi_solver1.solve()
+        (i, converged) = self.phi_solver1.solve()
         self.model.newton_params['snes_solver']['error_on_nonconvergence'] = True
       
       
