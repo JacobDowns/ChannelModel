@@ -280,7 +280,7 @@ class Solver(object):
     S_ode_solver.setRHSFunction(S_ode.rhs)
     S_ode_solver.setTime(0.0)
     S_ode_solver.setInitialTimeStep(0.0, 1.0)
-    S_ode_solver.setTolerances(atol=5e-10, rtol=1e-12)
+    S_ode_solver.setTolerances(atol=2e-10, rtol=1e-13)
     S_ode_solver.setMaxSteps(10000)
     S_ode_solver.setExactFinalTime(S_ode_solver.ExactFinalTimeOption.MATCHSTEP)
       
