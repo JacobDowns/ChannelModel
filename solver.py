@@ -331,8 +331,10 @@ class Solver(object):
       # Take two half steps
       if not constrain :
         self.model.newton_params['newton_solver']['error_on_nonconvergence'] = False
+        self.model.newton_params['newton_solver']['maximum_iterations'] = 40
         self.model.newton_params['newton_solver']['relaxation_parameter'] = 0.9
         solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
+        self.model.newton_params['newton_solver']['maximum_iterations'] = 30        
         self.model.newton_params['newton_solver']['relaxation_parameter'] = 1.0
         self.model.newton_params['newton_solver']['error_on_nonconvergence'] = True
       else :
