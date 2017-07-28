@@ -9,6 +9,8 @@ parameters['ghost_mode'] = 'shared_facet'
 
 """ Wrapper class for Glads."""
 
+#parameters["form_compiler"]["cpp_optimize"] = True
+
 class ChannelModel(Model):
 
   def __init__(self, model_inputs):

@@ -112,7 +112,7 @@ class Solver(object):
     if not self.storage:
       theta = 1.0
     else :
-      theta = 0.5
+      theta = 1.0
 
     # Crank Nicholson phi_mid
     theta = 1.0
@@ -331,11 +331,11 @@ class Solver(object):
       # Take two half steps
       if not constrain :
         self.model.newton_params['newton_solver']['error_on_nonconvergence'] = False
-        self.model.newton_params['newton_solver']['maximum_iterations'] = 45
-        self.model.newton_params['newton_solver']['relaxation_parameter'] = 0.85
+        self.model.newton_params['newton_solver']['maximum_iterations'] = 50
+        self.model.newton_params['newton_solver']['relaxation_parameter'] = 0.8
         solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
         self.model.newton_params['newton_solver']['maximum_iterations'] = 30        
-        self.model.newton_params['newton_solver']['relaxation_parameter'] = 1.0
+        self.model.newton_params['newton_solver']['relaxation_parameter'] = 0.95
         self.model.newton_params['newton_solver']['error_on_nonconvergence'] = True
       else :
         self.model.snes_params['snes_solver']['error_on_nonconvergence'] = False
