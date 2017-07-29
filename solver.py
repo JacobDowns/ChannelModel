@@ -35,7 +35,7 @@ class Solver(object):
     # Basal sliding speed
     u_b = model.u_b
     # Potential
-    phi = model.phi
+    phi = model.phi 
     # Potential at 0 pressure
     phi_m = model.phi_m
     # Potential at overburden pressure
@@ -116,10 +116,10 @@ class Solver(object):
 
     # Crank Nicholson phi_mid
     theta = 1.0
-    phi_mid = Constant(theta)*phi + Constant(1. - theta)*phi1                
+    phi_mid = phi + Constant(rho_w * g)*h          
       
     # Expression for effective pressure
-    N = phi_0 - phi_mid
+    N = phi_0 - phi
     # Flux vector
     q = -k*(h**alpha)*(dot(grad(phi_mid), grad(phi_mid)) + phi_reg)**(delta / 2.0) * grad(phi_mid)
     # Opening term 
@@ -138,7 +138,7 @@ class Solver(object):
     # Energy dissipation 
     Xi = abs(Q * dphi_ds) + abs(Constant(l_c) * q_c * dphi_ds)
     # Derivative of water pressure along channels
-    dpw_ds = dot(grad(phi_mid - phi_m), s)
+    dpw_ds = dot(grad(phi - phi_m), s)
     # Switch to turn refreezing on or of
     f1 = conditional(gt(S,0.0),1.0,0.0)
     f2 = conditional(gt(q_c * dpw_ds, 0.0), 1.0, 0.0)
