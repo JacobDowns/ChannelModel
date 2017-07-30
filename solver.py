@@ -114,7 +114,7 @@ class Solver(object):
     else :
       theta = 1.0
 
-    # Crank Nicholson phi_mid
+    # Crank Nicolson phi_mid (not anymore)
     theta = 1.0
     phi_mid = phi + Constant(rho_w * g)*h          
       
