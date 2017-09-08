@@ -150,13 +150,14 @@ class Solver(object):
     # Storage constant
     C = Constant(e_v/(rho_w * g))
 
+    self.dh_dt = w - v
+
 
     ### First, the variational form for hydraulic potential PDE
 
     # Sheet and channel components of variational form
     U1 = (-dot(grad(theta_cg), q) + (w - v - m)*theta_cg)*dx
     U2 = (-dot(grad(theta_cg), s)*Q + (w_c - v_c)*theta_cg)('+')*dS
-    self.R = Function(V_cg)
 
     if self.storage :
       F1_phi = (C*(phi - phi1)/dt)*theta_cg*dx
@@ -280,19 +281,6 @@ class Solver(object):
     S_ode_solver.setExactFinalTime(S_ode_solver.ExactFinalTimeOption.MATCHSTEP)
 
 
-    inland_boundary = FacetFunction('size_t', model.mesh)
-    File('inland_boundary.xml') >> inland_boundary
-    dS_inland = Measure('dS', domain = model.mesh, subdomain_data = inland_boundary)
-    flip_normal = Function(model.V_tr)
-    File('flip_normal.xml') >> flip_normal
-    indicator = Function(V_cg)
-    File('indicator.xml') >> indicator
-    #self.flip_normal = flip_normal
-    #self.dS_inland = dS_inland
-    #self.indicator
-
-    self.test_R = dot(n('+')*flip_normal('+'), q('+'))*dS_inland(1) + indicator*(w - v - m)*dx
-
     ### Assign local variables
 
     self.model = model
@@ -322,6 +310,8 @@ class Solver(object):
     self.N_func = model.N
     self.n = n
 
+    self.ds = Measure('ds', domain = model.mesh, subdomain_data = model.boundaries)
+
 
   # Step PDE for phi forward by dt
   def step_phi(self, dt, constrain = False):
@@ -348,17 +338,26 @@ class Solver(object):
         self.model.newton_params['newton_solver']['error_on_nonconvergence'] = True
       else :
         self.model.snes_params['snes_solver']['error_on_nonconvergence'] = False
-        self.phi_solver1.parameters.update(self.model.snes_params)
         (i, converged) = self.phi_solver1.solve()
         self.model.snes_params['snes_solver']['error_on_nonconvergence'] = True
-        self.phi_solver1.parameters.update(self.model.snes_params)
 
-    print assemble(self.test_R)
+
 
     # Update phi1
     self.phi1.assign(self.phi)
     # Update fields derived from phi
     self.model.update_phi()
+
+    dhdt = assemble(self.dh_dt*dx)
+    imo = assemble(self.model.m*dx) - assemble(dot(self.q, self.n)*self.ds(1))
+    if self.MPI_rank == 0:
+        print dhdt
+        print imo
+    print
+
+
+
+    #quit()
 
   # Step odes for h and S forward by dt
   def step_ode(self, dt):

@@ -20,6 +20,7 @@ class Solver(object):
     # CG function space
     V_cg = model.V_cg
     V_tr = model.V_tr
+    self.V_cg2 = FunctionSpace(model.mesh, "CG", 3)
 
     ### Get a bunch of fields from the model
 
@@ -95,7 +96,7 @@ class Solver(object):
     alpha = model.pcs['alpha']
     delta = model.pcs['delta']
     # Regularization parameter
-    phi_reg = Constant(1e-16)
+    phi_reg = Constant(1e-20)
 
 
     ### Define variational forms for each unknown phi, h, and S
@@ -110,14 +111,13 @@ class Solver(object):
     if not e_v == 0:
       self.storage = True
 
-    #phi = phi #+ Constant(rho_w * g)*h
-
     # Expression for effective pressure
     N = phi_0 - phi
     # Flux vector
     q = -k*(h**alpha)*(dot(grad(phi), grad(phi)) + phi_reg)**(delta / 2.0) * grad(phi)
     # Opening term
     w = conditional(gt(h_r - h, 0.0), u_b*(h_r - h)/Constant(l_r), 0.0)
+    #w = u_b*(h_r - h)/Constant(l_r)
     # Closing term
     v = Constant(A) * h * N**3
     # Normal and tangent vectors
@@ -156,7 +156,6 @@ class Solver(object):
     # Sheet and channel components of variational form
     U1 = (-dot(grad(theta_cg), q) + (w - v - m)*theta_cg)*dx
     U2 = (-dot(grad(theta_cg), s)*Q + (w_c - v_c)*theta_cg)('+')*dS
-    self.R = Function(V_cg)
 
     if self.storage :
       F1_phi = (C*(phi - phi1)/dt)*theta_cg*dx
@@ -178,7 +177,6 @@ class Solver(object):
     phi_problem1.set_bounds(phi_min, phi_max)
     phi_solver1 = NonlinearVariationalSolver(phi_problem1)
     phi_solver1.parameters.update(model.snes_params)
-
 
 
     ### Secondly, set up the sheet height and channel area ODEs
@@ -280,19 +278,6 @@ class Solver(object):
     S_ode_solver.setExactFinalTime(S_ode_solver.ExactFinalTimeOption.MATCHSTEP)
 
 
-    inland_boundary = FacetFunction('size_t', model.mesh)
-    File('inland_boundary.xml') >> inland_boundary
-    dS_inland = Measure('dS', domain = model.mesh, subdomain_data = inland_boundary)
-    flip_normal = Function(model.V_tr)
-    File('flip_normal.xml') >> flip_normal
-    indicator = Function(V_cg)
-    File('indicator.xml') >> indicator
-    #self.flip_normal = flip_normal
-    #self.dS_inland = dS_inland
-    #self.indicator
-
-    self.test_R = dot(n('+')*flip_normal('+'), q('+'))*dS_inland(1) + indicator*(w - v - m)*dx
-
     ### Assign local variables
 
     self.model = model
@@ -321,6 +306,13 @@ class Solver(object):
     # Effective pressure as function
     self.N_func = model.N
     self.n = n
+    self.dh_dt = w - v
+    self.R = div(q) + w - v - m
+    self.k = k
+    self.alpha = alpha
+    self.delta = delta
+
+    self.ds = Measure('ds', domain = model.mesh, subdomain_data = model.boundaries)
 
 
   # Step PDE for phi forward by dt
@@ -335,7 +327,6 @@ class Solver(object):
         solve(self.F1_phi == 0, self.phi, self.model.d_bcs, J = self.J1_phi, solver_parameters = self.model.newton_params)
       else :
         (i, converged) = self.phi_solver1.solve()
-
     except :
       # Take two half steps
       if not constrain :
@@ -353,12 +344,55 @@ class Solver(object):
         self.model.snes_params['snes_solver']['error_on_nonconvergence'] = True
         self.phi_solver1.parameters.update(self.model.snes_params)
 
-    print assemble(self.test_R)
+
+
+
+    dhdt = assemble(self.dh_dt*dx)
+    #R1 = assemble()
+    imo = assemble(self.model.m*dx) - assemble(dot(self.q, self.n)*self.ds(1) + dot(self.q, self.n)*self.ds(0))
+    R = assemble(self.F1_phi)
+
+    #print assemble(div(self.q)*dx)
+    q2t = project(self.q, VectorFunctionSpace(self.model.mesh, 'CG', 2))
+    #print assemble((div(q2t) + self.dh_dt - self.model.m)*dx)
+
+
+    print assemble(dot(self.q, self.n)*ds)
+    print assemble(div(q2t)*dx)
+    quit()
+    print assemble(dot(q2, self.n)*ds )
+    #print assemble(dot(q2, self.n)*ds)
+
+    print assemble(div(q2)*dx)
+    quit()
+    print assemble(self.R*dx)
+    f = f.vector().array()
+    print
+    print R.sum()
+    quit()
+    #vec = as_vector([-1.0, 0.0])
+    #thing = project(dot(vec, self.q), self.model.V_cg)
+    #File('thing.pvd') << self.width_integrate(thing)
+
+    Rsum = R.sum()
+
+    Ro = Function(self.model.V_cg)
+    Ro.vector().set_local(R.array())
+    Ro.vector().apply("insert")
+    File('R.pvd') << Ro
+
+
+    if self.MPI_rank == 0:
+        print "RSum: " + str(Rsum)
+        print dhdt
+        print imo
+    print
 
     # Update phi1
     self.phi1.assign(self.phi)
     # Update fields derived from phi
     self.model.update_phi()
+
 
   # Step odes for h and S forward by dt
   def step_ode(self, dt):
