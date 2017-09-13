@@ -156,7 +156,6 @@ class Solver(object):
     # Sheet and channel components of variational form
     U1 = (-dot(grad(theta_cg), q) + (w - v - m)*theta_cg)*dx
     U2 = (-dot(grad(theta_cg), s)*Q + (w_c - v_c)*theta_cg)('+')*dS
-    self.R = Function(V_cg)
 
     if self.storage :
       F1_phi = (C*(phi - phi1)/dt)*theta_cg*dx
@@ -287,11 +286,14 @@ class Solver(object):
     File('flip_normal.xml') >> flip_normal
     indicator = Function(V_cg)
     File('indicator.xml') >> indicator
+    self.R_bc = DirichletBC(model.V_cg,  Constant(0.0), model.boundaries, 1)
     #self.flip_normal = flip_normal
     #self.dS_inland = dS_inland
     #self.indicator
 
     self.test_R = dot(n('+')*flip_normal('+'), q('+'))*dS_inland(1) + indicator*(w - v - m)*dx
+
+
 
     ### Assign local variables
 
@@ -321,6 +323,8 @@ class Solver(object):
     # Effective pressure as function
     self.N_func = model.N
     self.n = n
+    # Residual
+    self.R = Function(V_cg)
 
 
   # Step PDE for phi forward by dt
@@ -354,7 +358,10 @@ class Solver(object):
         self.phi_solver1.parameters.update(self.model.snes_params)
 
     print assemble(self.test_R)
-
+    # Update the residual
+    self.R.vector().set_local(assemble(self.F1_phi).array())
+    self.R.vector().apply("insert")
+    self.R_bc.apply(self.R.vector())
     # Update phi1
     self.phi1.assign(self.phi)
     # Update fields derived from phi

@@ -75,7 +75,7 @@ class ChannelModel(Model):
       self.phi_min.assign(self.model_inputs['phi_min'])
 
     # If the maximum potential is specified, then use it.
-    self.phi_max.assign(project(self.phi_m + Constant(1.1)*self.p_i, self.V_cg))
+    self.phi_max.assign(project(self.phi_m + Constant(1.0)*self.p_i, self.V_cg))
     if 'phi_max' in self.model_inputs:
       self.phi_max.assign(self.model_inputs['phi_max'])
 
@@ -155,8 +155,9 @@ class ChannelModel(Model):
     self.u_b_out = File(self.out_dir + "u_b.pvd")
     self.k_out = File(self.out_dir + "k.pvd")
     self.q_out = File(self.out_dir + "q.pvd")
+    self.q_n_out = File(self.out_dir + "q_n.pvd")
+    self.q_mag_out = File(self.out_dir + "q_mag.pvd")
     self.h_e_out = File(self.out_dir + "h_e.pvd")
-    self.q_vec_out = File(self.out_dir + "q_vec.pvd")
     self.R_out = File(self.out_dir + 'R.pvd')
 
     # Facet functions for plotting CR functions in Paraview
@@ -349,7 +350,9 @@ class ChannelModel(Model):
         self.q_out << project(self.solver.q, self.V_vec)
       if 'q_n' in to_write:
         n = as_vector([-1.0, 0.0])
-        self.q_vec << project(dot(self.solver.q, n), self.V_cg)
+        self.q_n_out << project(dot(self.solver.q, n), self.V_cg)
+      if 'q_mag' in to_write:
+        self.q_mag_out << project(sqrt(dot(self.solver.q, self.solver.q)), self.V_cg)
       if 'k' in to_write:
         self.k_out << self.k
       if 'h_e' in to_write:
@@ -379,6 +382,8 @@ class ChannelModel(Model):
     if 'pfo' in to_write:
       self.output_file.write(self.pfo, "pfo", self.t)
     if 'q' in to_write:
+      self.output_file.write(project(self.solver.q, self.V_vec), "q", self.t)
+    if 'q_mag' in to_write:
       q_mag = project(sqrt(dot(self.solver.q, self.solver.q)), self.V_cg)
       self.output_file.write(q_mag, "q", self.t)
     if 'q_n' in to_write:
@@ -408,8 +413,6 @@ class ChannelModel(Model):
   # Sets the melt rate function
   def set_m(self, new_m):
     self.m.assign(new_m)
-
-
   # Sets sheet height function
   def set_h(self, new_h):
     self.h.assign(project(new_h,  self.V_cg))
