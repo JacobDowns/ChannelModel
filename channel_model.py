@@ -20,19 +20,21 @@ class ChannelModel(Model):
 
     # Typical CG FEM space
     self.V_cg = FunctionSpace(self.mesh, "CG", 1)
+    # DG function space
+    self.V_dg = FunctionSpace(self.mesh, "DG", 0)
     # Space of trace elements that have constant values on facets
     self.V_tr = FunctionSpace(self.mesh, FiniteElement("Discontinuous Lagrange Trace", "triangle", 0))
     # Vector function space for flux
-    self.V_vec = VectorFunctionSpace(self.mesh, "CG", 1)
+    self.V_vec = VectorFunctionSpace(self.mesh, "CG", 2)
 
     ## Primary model unknowns
 
     # Hydraulic potential
     self.phi = Function(self.V_cg)
-    # Sheet height
-    self.h = Function(self.V_cg)
-    # Channel cross sectional area
-    self.S = Function(self.V_tr)
+    # Sheet height as DG function
+    self.h = Function(self.V_dg)
+    # Sheet height as a CG function
+    self.h_cg = Function(self.V_cg)
 
     ## Other fields
 
@@ -95,6 +97,10 @@ class ChannelModel(Model):
       self.d_bcs.append(DirichletBC(self.V_cg, self.phi_m, self.boundaries, 1))
 
 
+    ### Boundary condition for hyperbolic problem for h
+    self.h_bcs = [DirichletBC(self.V_dg, Constant(0.0), self.boundaries, 2, "geometric")]
+
+
     ### Newton solver parameters
 
     # If the Newton parameters are specified use them. Otherwise use some
@@ -128,15 +134,7 @@ class ChannelModel(Model):
 
 
     ### Flag to turn off channels
-    self.use_channels = True
-    if 'use_channels' in self.model_inputs:
-      self.use_channels = self.model_inputs['use_channels']
-
-
-    ### FLag to turn off pressure melt term pi
-    self.use_pi = True
-    if 'use_pi' in self.model_inputs:
-      self.use_pi = self.model_inputs['use_pi']
+    self.use_channels = False
 
 
     ### Create object that solves the model equations
@@ -158,10 +156,6 @@ class ChannelModel(Model):
     self.q_n_out = File(self.out_dir + "q_n.pvd")
     self.q_mag_out = File(self.out_dir + "q_mag.pvd")
     self.h_e_out = File(self.out_dir + "h_e.pvd")
-    self.R_out = File(self.out_dir + 'R.pvd')
-
-    # Facet functions for plotting CR functions in Paraview
-    self.ff_out_S = FacetFunctionDouble(self.mesh)
 
 
   # Steps phi and h forward by dt
@@ -196,7 +190,6 @@ class ChannelModel(Model):
     self.output_file.write(self.B, "B")
     self.output_file.write(self.H, "H")
     self.output_file.write(self.boundaries, "boundaries")
-    self.output_file.write(self.S, "S_0")
     self.output_file.write(self.k, "k_0")
     self.output_file.write(interpolate(Constant(self.pcs['k_c']), self.V_cg), "k_c_0")
 
@@ -208,11 +201,9 @@ class ChannelModel(Model):
      # Load the most recent cavity height and channel height values
      num_steps = self.input_file.attributes("h")['count']
      h_last = "h/vector_" + str(num_steps - 1)
-     S_last = "S/vector_" + str(num_steps - 1)
      phi_last = "phi/vector_" + str(num_steps - 1)
 
      self.input_file.read(self.h, h_last)
-     self.input_file.read(self.S, S_last)
      self.input_file.read(self.phi, phi_last)
 
      # Get the start time for the simulation
@@ -238,6 +229,7 @@ class ChannelModel(Model):
       self.input_file.read(self.k, "k_0")
       # Read in the initial cavity height
       self.input_file.read(self.h, "h_0")
+      self.h_cg.assign(self.h)
       # Use the default constant bump height
       self.h_r.assign(interpolate(Constant(self.pcs['h_r']), self.V_cg))
 
@@ -265,19 +257,37 @@ class ChannelModel(Model):
         # No initial potential specified, use overburden potential
         self.phi.assign(self.phi_0)
 
-      # Update phi
-      self.update_phi()
 
-      ### Load the initial channel cross sectional area function, if there is one
-      has_S0 = False
+      ### Load phi_min function if there is one
+      has_phi_min = False
       try :
-        self.input_file.attributes("S_0")
-        has_S0 = True
+         self.input_file.attributes("phi_min")
       except :
         pass
 
-      if has_S0:
-        self.input_file.read(self.S, "S_0")
+      if has_phi_min:
+        self.input_file.read(self.phi_min, "phi_min")
+      else :
+        self.phi_min.assign(self.phi_m)
+
+
+      ### Load phi_max function if there is one
+      has_phi_max = False
+      try :
+         self.input_file.attributes("phi_max")
+         has_phi_max = True
+      except :
+        pass
+
+      if has_phi_max:
+        print "here"
+        self.input_file.read(self.phi_max, "phi_max")
+      else :
+        self.phi_max.assign(self.phi_0)
+
+
+      # Update phi
+      self.update_phi()
 
     except Exception as e:
       # If we can't find one of these model inputs we're done
@@ -288,16 +298,13 @@ class ChannelModel(Model):
 
   # Update the effective pressure to reflect current value of phi
   def update_N(self):
-    self.N.vector().set_local(self.phi_0.vector().array() - self.phi.vector().array())
-    self.N.vector().apply("insert")
+    self.N.assign(project(self.phi_0 - self.phi, self.V_cg))
 
 
   # Update the water pressure to reflect current value of phi
   def update_pw(self):
     # Compute water pressure
-    self.p_w.vector().set_local(self.phi.vector().array() - self.phi_m.vector().array())
-    self.p_w.vector().apply("insert")
-
+    self.p_w.assign(project(self.phi - self.phi_m, self.V_cg))
     # Update pressure as fraction of overburden
     self.update_pfo()
     # Update storage
@@ -307,8 +314,7 @@ class ChannelModel(Model):
   # Update the pressure as a fraction of overburden to reflect the current
   # value of phi
   def update_pfo(self):
-    self.pfo.vector().set_local(self.p_w.vector().array() / self.p_i.vector().array())
-    self.pfo.vector().apply("insert")
+    self.pfo.assign(project(self.p_w / self.p_i, self.V_cg))
 
 
   # Update water storage to reflect current pressure
@@ -316,8 +322,8 @@ class ChannelModel(Model):
     e_v = self.pcs['e_v']
     rho_w = self.pcs['rho_w']
     g = self.pcs['g']
-    self.h_e.vector().set_local((e_v / (rho_w * g)) * self.p_w.vector().array())
-    self.h_e.vector().apply("insert")
+    self.h_e.assign(project(Constant(e_v / (rho_w * g)) * self.p_w, self.V_cg))
+
 
   # Updates functions derived from phi
   def update_phi(self):
@@ -357,20 +363,15 @@ class ChannelModel(Model):
         self.k_out << self.k
       if 'h_e' in to_write:
         self.h_e_out << self.h_e
-      if 'R' in to_write:
-        self.R_out << self.solver.R
 
 
   # Write checkpoint files to an hdf5 file
   def checkpoint(self, to_write = [], label = None):
     to_write = set(to_write)
 
-    # Always checkpoint h and S
+    # Always checkpoint h
     self.output_file.write(self.h, "h", self.t)
-    self.output_file.write(self.S, "S", self.t)
 
-    if self.use_channels or 'S' in to_write:
-      self.output_file.write(self.phi, "phi", self.t)
     if 'N' in to_write:
       self.output_file.write(self.phi, "N", self.t)
     if 'u_b' in to_write:
@@ -390,22 +391,8 @@ class ChannelModel(Model):
       n = as_vector([-1.0, 0.0])
       q_n = project(dot(self.solver.q, n), self.V_cg)
       self.output_file.write(q_n, "q_n", self.t)
-    if 'Pi' in to_write:
-      self.output_file.write(self.solver.get_Pi_tr(), "Pi", self.t)
-    if 'Q' in to_write:
-      self.output_file.write(self.solver.get_Q_tr(), "Q", self.t)
-    if 'f' in to_write:
-      self.output_file.write(self.solver.get_f_tr(), "f", self.t)
-    if 'dpw_ds' in to_write:
-      self.output_file.write(self.solver.get_dpw_ds_tr(), "dpw_ds", self.t)
-    if 'dhi_ds' in to_write:
-      self.output_file.write(self.solver.get_dphi_ds_tr(), "dphi_ds", self.t)
-    if 'q_c' in to_write:
-      self.output_file.write(self.solver.get_q_c_tr(), "q_c", self.t)
     if 'h_e' in to_write:
       self.output_file.write(self.h_e, "h_e", self.t)
-    if 'R' in to_write:
-      self.output_file.write(self.solver.R, "R", self.t)
 
     self.output_file.flush()
 
@@ -413,6 +400,8 @@ class ChannelModel(Model):
   # Sets the melt rate function
   def set_m(self, new_m):
     self.m.assign(new_m)
+
+
   # Sets sheet height function
   def set_h(self, new_h):
     self.h.assign(project(new_h,  self.V_cg))
@@ -439,7 +428,6 @@ class ChannelModel(Model):
     output_file.write(self.m, 'm_0')
     output_file.write(self.u_b, 'u_b_0')
     output_file.write(self.h, "h_0")
-    output_file.write(self.S, "S_0")
     output_file.write(self.boundaries, "boundaries")
     output_file.write(self.k, "k_0")
     output_file.write(self.phi, "phi_0")
@@ -449,4 +437,3 @@ class ChannelModel(Model):
     n = as_vector([-1.0, 0.0])
     q_n = project(dot(self.solver.q, n), self.V_cg)
     output_file.write(q_n, 'q_n')
-    output_file.write(self.solver.R, "R")
